@@ -1,4 +1,6 @@
+using DG.Tweening;
 using UnityEngine;
+using UnityEngine.LowLevel;
 
 public class Weapon : MonoBehaviour
 {
@@ -7,83 +9,90 @@ public class Weapon : MonoBehaviour
     public Transform firePoint;
     public Transform head;
 
-    private float nextFireTime;
+    [HideInInspector] public PlayerLook playerLook;
+
+    float nextFireTime;
+
+    [Header("Recoil Visual")]
+    public Transform recoilPivot;
+
+
+    Vector3 currentPos;
+    Vector3 currentRot;
+
+    Vector3 targetPos;
+    Vector3 targetRot;
+
+    [Header("Recoil Settings")]
+    public float snappiness = 12f;
+    public float returnSpeed = 6f;
 
     void Awake()
     {
         firePoint = transform.Find("FirePoint");
     }
 
+
     public void TryShoot()
     {
-        Debug.Log("TRY SHOOT");
-
-        if (Time.time < nextFireTime)
-            return;
-
+        if (Time.time < nextFireTime) return;
         nextFireTime = Time.time + 1f / weaponData.fireRate;
-
         Shoot();
     }
 
     void Shoot()
     {
-        Debug.Log("ATIROU com dano: " + weaponData.damage);
+        ApplyRecoil();
+        if (weaponData.weaponType == WeaponType.Hitscan) HitscanShot();
+        else ProjectileShot();
+    }
 
-        if (weaponData.weaponType == WeaponType.Hitscan)
-            HitscanShot();
-        else
-            ProjectileShot();
+    public void ApplyRecoil()
+    {
+        // 1. Recoil da Câmera no PlayerLook (que move a cabeça do Cinemachine)
+        playerLook.AddRecoil(weaponData.recoil.cameraKick);
+
+        // 2. Recoil Visual da Arma usando DOTween
+        recoilPivot.DOKill(); // Reseta animações anteriores se atirar rápido
+
+        // Puxão para trás (Efeito de coice)
+        recoilPivot.DOLocalMoveZ(-weaponData.recoil.weaponBack, 0.05f).SetLoops(2, LoopType.Yoyo);
+
+        // Rotação para cima (Cano levantando)
+        recoilPivot.DOLocalRotate(new Vector3(-weaponData.recoil.weaponUp, 0, 0), 0.07f).SetLoops(2, LoopType.Yoyo);
     }
 
     void HitscanShot()
     {
-        PlayMuzzleFlash();
-
         Ray ray = new Ray(head.position, head.forward);
 
         if (Physics.Raycast(ray, out RaycastHit hit, weaponData.range))
         {
-            Damage(hit.collider);
-            PlayHitEffect(hit);
+            float finalDamage = CalculateDamage(hit);
+            ApplyDamage(hit.collider, finalDamage);
         }
     }
 
-    void Damage(Collider target)
+    float CalculateDamage(RaycastHit hit)
     {
-        Enemy enemy = target.GetComponentInParent<Enemy>();
+        float damage = weaponData.damage;
 
-        if (enemy != null)
-        {
-            enemy.Damage(weaponData.damage);
-        }
+        float distancePercent = hit.distance / weaponData.maxDistance;
+        float distanceMultiplier = weaponData.damageOverDistance.Evaluate(distancePercent);
+        damage *= distanceMultiplier;
+
+        if (hit.collider.CompareTag("Head"))
+            damage *= weaponData.headshotMultiplier;
+
+        return damage;
     }
 
-    void PlayHitEffect(RaycastHit hit)
+    void ApplyDamage(Collider target, float damage)
     {
-        if (weaponData.hitEffect == null) return;
+        IDamageable dmg = target.GetComponentInParent<IDamageable>();
 
-        GameObject fx = Instantiate(
-            weaponData.hitEffect,
-            hit.point + hit.normal * 0.001f,
-            Quaternion.LookRotation(hit.normal)
-        );
-
-        Destroy(fx, 1f);
-    }
-
-    void PlayMuzzleFlash()
-    {
-        if (weaponData.muzzleFlash == null || firePoint == null) return;
-
-        GameObject fx = Instantiate(
-            weaponData.muzzleFlash,
-            firePoint.position,
-            firePoint.rotation,
-            firePoint
-        );
-
-        Destroy(fx, 0.05f);
+        if (dmg != null)
+            dmg.Damage(damage);
     }
 
     void ProjectileShot()
@@ -97,5 +106,4 @@ public class Weapon : MonoBehaviour
         Rigidbody rb = proj.GetComponent<Rigidbody>();
         rb.linearVelocity = firePoint.forward * weaponData.projectileSpeed;
     }
-
 }

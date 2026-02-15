@@ -1,3 +1,4 @@
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -13,8 +14,7 @@ public class PlayerLook : MonoBehaviour
 
     private PlayerInputActions inputActions;
     private Vector2 lookInput;
-
-    private float xRotation = 0f;
+    private float xRotation;
 
     void Awake()
     {
@@ -26,18 +26,11 @@ public class PlayerLook : MonoBehaviour
     void OnEnable()
     {
         inputActions.Enable();
-
-        inputActions.Player.Look.performed += ctx =>
-            lookInput = ctx.ReadValue<Vector2>();
-
-        inputActions.Player.Look.canceled += _ =>
-            lookInput = Vector2.zero;
+        inputActions.Player.Look.performed += ctx => lookInput = ctx.ReadValue<Vector2>();
+        inputActions.Player.Look.canceled += _ => lookInput = Vector2.zero;
     }
 
-    void OnDisable()
-    {
-        inputActions.Disable();
-    }
+    void OnDisable() => inputActions.Disable();
 
     void Update()
     {
@@ -49,13 +42,24 @@ public class PlayerLook : MonoBehaviour
         float mouseX = lookInput.x * sensitivity * Time.deltaTime;
         float mouseY = lookInput.y * sensitivity * Time.deltaTime;
 
-        // Rotação vertical (cabeça)
         xRotation -= mouseY;
         xRotation = Mathf.Clamp(xRotation, -maxLookAngle, maxLookAngle);
 
+        // APLICAMOS A ROTAÇÃO:
+        // Se a Weapon Camera for filha da Main Camera (que segue a Head), 
+        // ela vai seguir isso perfeitamente agora.
         head.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-
-        // Rotação horizontal (corpo inteiro)
         body.Rotate(Vector3.up * mouseX);
     }
+
+    public void AddRecoil(float force)
+    {
+        // REMOVEMOS o DOTween que alterava o xRotation diretamente.
+        // Em vez disso, vamos dar um "soco" (Punch) na rotação da cabeça.
+        // Isso é muito mais limpo e não quebra o limite do Clamp.
+
+        head.DOComplete(); // Para o recoil anterior se estiver atirando rápido
+        head.DOPunchRotation(new Vector3(-force, 0, 0), 0.1f, 10, 1);
+    }
 }
+

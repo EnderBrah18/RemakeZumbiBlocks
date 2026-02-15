@@ -29,10 +29,12 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Movimento no Ar")]
     public float airControlMultiplier = 0.65f;
-    public float airAcceleration = 5f;
+    public float airAcceleration = 4f;
     public float airDrag = 2f;
 
     [Header("Ground Check")]
+    public float groundFriction = 15f;
+    public float groundAcceleration = 12f;
     public float groundedGraceTime = 0.2f;
     private float lastGroundedTime;
 
@@ -113,14 +115,30 @@ public class PlayerMovement : MonoBehaviour
 
         Vector3 targetVelocity = inputDir * targetSpeed;
 
-        horizontalVelocity = Vector3.Lerp(
-            horizontalVelocity,
-            targetVelocity,
-            (controller.isGrounded ? 10f : airAcceleration) * controlMultiplier * Time.deltaTime
-        );
+        float accel = controller.isGrounded ? groundAcceleration : airAcceleration;
 
+        Vector3 velocityDiff = targetVelocity - horizontalVelocity;
+
+        horizontalVelocity += velocityDiff * accel * controlMultiplier * Time.deltaTime;
+
+        if (controller.isGrounded && inputDir.magnitude < 0.1f)
+        {
+            horizontalVelocity = Vector3.Lerp(
+                horizontalVelocity,
+                Vector3.zero,
+                groundFriction * Time.deltaTime
+            );
+        }
+
+        //  AIR DRAG
         if (!controller.isGrounded)
+        {
             horizontalVelocity *= (1f - airDrag * Time.deltaTime);
+        }
+
+        //  MANTER COLADO NO CHÃO EM RAMPAS
+        if (controller.isGrounded && vSpeed < 0)
+            vSpeed = -2f;
 
         Vector3 finalMove = horizontalVelocity;
         finalMove.y = vSpeed;

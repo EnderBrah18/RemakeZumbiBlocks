@@ -26,7 +26,7 @@ public enum EnemySizeType
 
 }
 
-public class Enemy : MonoBehaviour
+public class Enemy : MonoBehaviour, IDamageable
 {
     public bool respawnableEnemy = false;
     [SerializeField] private GameObject visualModel;
@@ -191,6 +191,8 @@ public class Enemy : MonoBehaviour
 
     public void Damage(float amount)
     {
+        Debug.Log("TOMOU DANO");
+
         if (isDead) return; // <- evita lógica de morte repetida
 
         currentHealth -= amount;

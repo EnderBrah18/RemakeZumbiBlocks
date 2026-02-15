@@ -8,6 +8,7 @@ public class PlayerCombat : MonoBehaviour
 
     public WeaponSO startingWeapon;
     public Weapon currentWeapon;
+    public CameraEffects cameraEffects;
 
     private PlayerInputActions inputActions;
 
@@ -54,23 +55,28 @@ public class PlayerCombat : MonoBehaviour
 
     public void EquipWeapon(WeaponSO weaponData)
     {
-        // remove arma antiga
-        if (currentWeapon != null)
-            Destroy(currentWeapon.gameObject);
+        if (currentWeapon != null) Destroy(currentWeapon.gameObject);
 
-        // cria nova arma
         GameObject weaponGO = Instantiate(weaponData.weaponPrefab, weaponHolder);
+
+        // Define a layer para que a WeaponCamera (Overlay) capture o objeto
+        SetLayerRecursive(weaponGO, LayerMask.NameToLayer("Weapon"));
+
+        // Reseta a posição para o centro da visão da câmera overlay
         weaponGO.transform.localPosition = Vector3.zero;
         weaponGO.transform.localRotation = Quaternion.identity;
 
-        // pega o script
         currentWeapon = weaponGO.GetComponent<Weapon>();
-
-        // passa os dados do SO pra arma
         currentWeapon.weaponData = weaponData;
-
-        // passa referência da câmera/head
         currentWeapon.head = head;
+        currentWeapon.playerLook = GetComponent<PlayerLook>();
+    }
+
+    // Método auxiliar para mudar a layer de tudo na arma
+    void SetLayerRecursive(GameObject obj, int newLayer)
+    {
+        obj.layer = newLayer;
+        foreach (Transform child in obj.transform) SetLayerRecursive(child.gameObject, newLayer);
     }
 
     void StartFiring()
