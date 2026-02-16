@@ -17,6 +17,7 @@ MonoBehaviour:
     weaponBack: 0.04
     weaponUp: 3
   weaponPrefab: {fileID: 3799304794418460122, guid: 00a85d5e91818d64d8619aceb210c783, type: 3}
+  worldModelPrefab: {fileID: 3799304794418460122, guid: 10b9dcc2fa92ef347a698042ea6db213, type: 3}
   weaponName: Glock
   recoilAmount: 2
   recoilBack: 0.12
@@ -69,3 +70,4 @@ MonoBehaviour:
   projectilePrefab: {fileID: 6377648731613565274, guid: dbb2028bcd6588d4892d0dc6400d1254, type: 3}
   projectileSpeed: 30
   muzzleFlash: {fileID: 1830292164774909310, guid: 861555b8f6304174989d4ce17b64d780, type: 3}
+  ammoType: 0

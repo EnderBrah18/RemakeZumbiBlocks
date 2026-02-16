@@ -242,7 +242,7 @@ GameObject:
   - component: {fileID: 222428836}
   - component: {fileID: 222428835}
   - component: {fileID: 222428834}
-  m_Layer: 3
+  m_Layer: 0
   m_Name: Plane
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -485,7 +485,7 @@ Camera:
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 191
+    m_Bits: 1215
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -828,18 +828,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCombat
   weaponHolder: {fileID: 572564471}
   head: {fileID: 1000425336}
-  startingWeapon: {fileID: 11400000, guid: 5dcf8d67b3b91b748aa371939a0c6a4b, type: 2}
+  startingWeapon: {fileID: 0}
   currentWeapon: {fileID: 0}
   cameraEffects: {fileID: 1032802508}
-  reachDistance: 3
-  pickupLayer:
+  interactRange: 10
+  interactableLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 1024
   worldItemPrefab: {fileID: 0}
+  equipTime: 0.5
   inventory:
   - {fileID: 11400000, guid: 5dcf8d67b3b91b748aa371939a0c6a4b, type: 2}
   - {fileID: 11400000, guid: 31eb05058e31ef5409bd744dc66732ce, type: 2}
+  ammoInSlots: 0000000000000000
   currentSlot: 0
+  pistolAmmo: 60
+  rifleAmmo: 120
+  shotgunAmmo: 20
 --- !u!114 &508270095
 MonoBehaviour:
   m_ObjectHideFlags: 0

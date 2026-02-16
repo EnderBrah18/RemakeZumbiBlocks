@@ -61,3 +61,4 @@ MonoBehaviour:
   projectilePrefab: {fileID: 0}
   projectileSpeed: 30
   muzzleFlash: {fileID: 0}
+  ammoType: 1
