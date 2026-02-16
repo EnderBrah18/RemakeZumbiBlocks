@@ -4,6 +4,8 @@ using UnityEngine;
 public enum FireType { Semi, Auto }
 public enum WeaponType { Hitscan, Projectile }
 
+public enum AmmoType { Pistol, Rifle, Shotgun, Sniper }
+
 [CreateAssetMenu(menuName = "FPS/Weapon")]
 public class WeaponSO : ScriptableObject
 {
@@ -11,6 +13,7 @@ public class WeaponSO : ScriptableObject
 
     [Header("Prefab da arma")]
     public GameObject weaponPrefab;
+    public GameObject worldModelPrefab;
 
     [Header("Info")]
     public string weaponName;
@@ -28,6 +31,10 @@ public class WeaponSO : ScriptableObject
     public float damage = 10f;
     public float fireRate = 10f;
     public float range = 100f;
+
+    [Header("Munição")]
+    public int magSize = 30;       // Capacidade do pente
+    public float reloadTime = 1.5f; // Quanto tempo demora a recarga
 
     [Header("Headshot")]
     public float headshotMultiplier = 2f;
@@ -49,4 +56,6 @@ public class WeaponSO : ScriptableObject
 
     [Header("Visual")]
     public GameObject muzzleFlash;
+
+    public AmmoType ammoType;
 }

@@ -10,23 +10,24 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 21cd09ab0ee3bac4ba62c465115a57e5, type: 3}
-  m_Name: Glock
+  m_Name: SMG
   m_EditorClassIdentifier: Assembly-CSharp::WeaponSO
   recoil:
     cameraKick: 3.5
-    weaponBack: 0.04
+    weaponBack: 0.4
     weaponUp: 3
-  weaponPrefab: {fileID: 3799304794418460122, guid: 00a85d5e91818d64d8619aceb210c783, type: 3}
-  weaponName: Glock
+  weaponPrefab: {fileID: 3799304794418460122, guid: 982fb4318249a1047972d2205dd304e9, type: 3}
+  worldModelPrefab: {fileID: 4362569295182550664, guid: 462abf0eeffea1545b844548ed5e34e5, type: 3}
+  weaponName: SMG
   recoilAmount: 2
-  recoilBack: 0.12
-  recoilUp: 10
-  recoilReturnSpeed: 6
+  recoilBack: 0.1
+  recoilUp: 5
+  recoilReturnSpeed: 8
   recoilSnappiness: 12
   damage: 10
-  fireRate: 2
+  fireRate: 10
   range: 100
-  magSize: 30
+  magSize: 60
   reloadTime: 1.5
   headshotMultiplier: 2
   damageOverDistance:
@@ -35,37 +36,28 @@ MonoBehaviour:
     - serializedVersion: 3
       time: 0
       value: 1
-      inSlope: -0.7253696
-      outSlope: -0.7253696
+      inSlope: 0
+      outSlope: 0
       tangentMode: 34
       weightedMode: 0
       inWeight: 0
-      outWeight: 0.33333334
-    - serializedVersion: 3
-      time: 0.4135823
-      value: 0.7
-      inSlope: -0.61847514
-      outSlope: -0.61847514
-      tangentMode: 34
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
+      outWeight: 0
     - serializedVersion: 3
       time: 1
-      value: 0.4
-      inSlope: -0.5115807
-      outSlope: -0.5115807
+      value: 1
+      inSlope: 0
+      outSlope: 0
       tangentMode: 34
       weightedMode: 0
-      inWeight: 0.33333334
+      inWeight: 0
       outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
   maxDistance: 100
-  fireType: 0
+  fireType: 1
   weaponType: 0
   hitEffect: {fileID: 0}
-  projectilePrefab: {fileID: 6377648731613565274, guid: dbb2028bcd6588d4892d0dc6400d1254, type: 3}
+  projectilePrefab: {fileID: 0}
   projectileSpeed: 30
-  muzzleFlash: {fileID: 1830292164774909310, guid: 861555b8f6304174989d4ce17b64d780, type: 3}
+  muzzleFlash: {fileID: 0}

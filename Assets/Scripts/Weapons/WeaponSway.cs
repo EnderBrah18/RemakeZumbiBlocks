@@ -4,41 +4,43 @@ using UnityEngine.InputSystem;
 
 public class WeaponSway : MonoBehaviour
 {
-    [Header("Settings")]
-    public float swayAmount = 0.02f;
-    public float maxSway = 0.06f;
-    public float swaySmoothness = 0.2f;
+    [Header("Referências")]
+    [SerializeField] private PlayerLook playerLook; // Arraste o objeto com o script PlayerLook aqui
+
+    [Header("Configurações de Sway")]
+    [SerializeField] private float intensity = 0.5f;
+    [SerializeField] private float maxAmount = 0.05f;
+    [SerializeField] private float smoothing = 8f;
 
     private Vector3 initialPosition;
-    private PlayerInputActions inputActions;
-    private Vector2 lookInput;
 
-    void Awake()
+    void Start()
     {
-        inputActions = new PlayerInputActions();
         initialPosition = transform.localPosition;
-    }
 
-    void OnEnable()
-    {
-        inputActions.Enable();
-        // Conecta ao mesmo input de 'Look' que o PlayerLook usa
-        inputActions.Player.Look.performed += ctx => lookInput = ctx.ReadValue<Vector2>();
-        inputActions.Player.Look.canceled += _ => lookInput = Vector2.zero;
+        // Auto-busca se esquecer de arrastar no Inspector
+        if (playerLook == null)
+            playerLook = GetComponentInParent<PlayerLook>();
     }
-
-    void OnDisable() => inputActions.Disable();
 
     void Update()
     {
-        // Substituindo o GetAxis antigo pelo valor do Input System
-        float moveX = lookInput.x * swayAmount;
-        float moveY = lookInput.y * swayAmount;
+        if (playerLook == null) return;
 
-        moveX = Mathf.Clamp(moveX, -maxSway, maxSway);
-        moveY = Mathf.Clamp(moveY, -maxSway, maxSway);
+        // Pegamos o valor já processado pelo New Input System no PlayerLook
+        Vector2 lookInput = playerLook.GetLookInput();
 
-        Vector3 targetPos = new Vector3(moveX, moveY, 0);
-        transform.DOLocalMove(initialPosition + targetPos, swaySmoothness);
+        // Calculamos o deslocamento (Note que não usamos mais GetAxis)
+        float moveX = Mathf.Clamp(lookInput.x * intensity, -maxAmount, maxAmount);
+        float moveY = Mathf.Clamp(lookInput.y * intensity, -maxAmount, maxAmount);
+
+        Vector3 targetPosition = new Vector3(
+            initialPosition.x - moveX,
+            initialPosition.y - moveY,
+            initialPosition.z
+        );
+
+        // Aplica o movimento suave
+        transform.localPosition = Vector3.Lerp(transform.localPosition, targetPosition, Time.deltaTime * smoothing);
     }
 }

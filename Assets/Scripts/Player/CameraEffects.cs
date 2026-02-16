@@ -4,56 +4,89 @@ using UnityEngine.LowLevel;
 
 public class CameraEffects : MonoBehaviour
 {
-    [Header("References")]
-    public CharacterController controller;
-    public Transform head; // O alvo que a Cinemachine segue
+    [Header("Referências")]
+    public CharacterController controller; // Para saber se estamos andando/correndo
+    private Vector2 moveInput;
 
-    [Header("Head Bob Settings")]
-    public float bobAmount = 0.05f;
-    public float bobSpeed = 0.2f;
+    [Header("Balanço ao Caminhar (Bobbing)")]
+    public float walkBobSpeed = 14f;
+    public float walkBobAmount = 0.05f;
+    public float runBobSpeed = 18f;
+    public float runBobAmount = 0.1f;
 
-    private Tween bobTween;
-    private Vector3 originalHeadPos;
+    [Header("Efeito de Pulo/Queda")]
+    public float landShakeDuration = 0.2f;
+    public float landShakeForce = 0.15f;
+
+    [Header("Tilt Settings")]
+    public float tiltAmount = 2f;
+    public float tiltSpeed = 5f;
+
+    private float timer = 0;
+    private float defaultPosY;
+    private bool wasGrounded;
 
     void Start()
     {
-        originalHeadPos = head.localPosition;
+        defaultPosY = transform.localPosition.y;
     }
 
     void Update()
     {
         HandleHeadBob();
+        HandleLandingEffect();
+        HandleTilt();
+    }
+    private void HandleTilt()
+    {
+        // moveInput.x é o valor de A (-1) e D (1)
+        float targetTilt = -moveInput.x * tiltAmount;
+
+        // Aplica a rotação Z de forma suave
+        Quaternion targetRotation = Quaternion.Euler(transform.localEulerAngles.x, transform.localEulerAngles.y, targetTilt);
+        transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRotation, Time.deltaTime * tiltSpeed);
     }
 
-    void HandleHeadBob()
+    private void HandleHeadBob()
     {
-        float speed = controller.velocity.magnitude;
+        // Só balança se estiver no chão e se movendo
+        float speed = new Vector2(controller.velocity.x, controller.velocity.z).magnitude;
 
-        // Se estiver no chão e se movendo
-        if (controller.isGrounded && speed > 0.1f)
+        if (speed > 0.1f && controller.isGrounded)
         {
-            if (bobTween == null || !bobTween.IsActive())
-            {
-                // Cria um movimento de "infinito" ou "8" deitado, comum em FPS
-                bobTween = head.DOLocalMoveY(originalHeadPos.y + bobAmount, bobSpeed)
-                    .SetEase(Ease.InOutSine)
-                    .SetLoops(-1, LoopType.Yoyo);
+            // Determina se usa valores de corrida ou caminhada (ex: se vel > 6)
+            float currentSpeed = speed > 6f ? runBobSpeed : walkBobSpeed;
+            float currentAmount = speed > 6f ? runBobAmount : walkBobAmount;
 
-                // Adiciona um leve balanço horizontal simultâneo
-                head.DOLocalMoveX(originalHeadPos.x + (bobAmount * 0.5f), bobSpeed * 2)
-                    .SetEase(Ease.InOutSine)
-                    .SetLoops(-1, LoopType.Yoyo);
-            }
+            timer += Time.deltaTime * currentSpeed;
+
+            // Cálculo do Seno para movimento de sobe e desce
+            float newY = defaultPosY + Mathf.Sin(timer) * currentAmount;
+            transform.localPosition = new Vector3(transform.localPosition.x, newY, transform.localPosition.z);
         }
         else
         {
-            // Se parar de andar, volta suavemente para a posição original
-            if (bobTween != null)
-            {
-                head.DOKill(); // Para todos os tweens no objeto head
-                bobTween = null;
-                head.DOLocalMove(originalHeadPos, 0.3f);
-            }
+            // Volta para a posição original suavemente quando para
+            timer = 0;
+            transform.localPosition = Vector3.Lerp(transform.localPosition,
+                new Vector3(transform.localPosition.x, defaultPosY, transform.localPosition.z),
+                Time.deltaTime * 8f);
         }
+    }
+
+    private void HandleLandingEffect()
+    {
+        // Detecta o exato momento em que o player toca o chão após um pulo
+        if (!wasGrounded && controller.isGrounded)
+        {
+            ApplyLandingShake();
+        }
+        wasGrounded = controller.isGrounded;
+    }
+
+    private void ApplyLandingShake()
+    {
+        // Pequeno impacto visual ao cair
+        transform.localPosition += new Vector3(0, -landShakeForce, 0);
     }
 }

@@ -430,6 +430,7 @@ GameObject:
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
   - component: {fileID: 330585548}
+  - component: {fileID: 330585549}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -589,6 +590,27 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   CustomBlends: {fileID: 0}
+--- !u!114 &330585549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 171f5adff01d53a48b88a5ba12adb17d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraEffects
+  controller: {fileID: 508270090}
+  walkBobSpeed: 14
+  walkBobAmount: 0.05
+  runBobSpeed: 18
+  runBobAmount: 0.1
+  landShakeDuration: 0.2
+  landShakeForce: 0.15
+  tiltAmount: 2
+  tiltSpeed: 5
 --- !u!1 &354956729
 GameObject:
   m_ObjectHideFlags: 0
@@ -809,6 +831,15 @@ MonoBehaviour:
   startingWeapon: {fileID: 11400000, guid: 5dcf8d67b3b91b748aa371939a0c6a4b, type: 2}
   currentWeapon: {fileID: 0}
   cameraEffects: {fileID: 1032802508}
+  reachDistance: 3
+  pickupLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  worldItemPrefab: {fileID: 0}
+  inventory:
+  - {fileID: 11400000, guid: 5dcf8d67b3b91b748aa371939a0c6a4b, type: 2}
+  - {fileID: 11400000, guid: 31eb05058e31ef5409bd744dc66732ce, type: 2}
+  currentSlot: 0
 --- !u!114 &508270095
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -869,9 +900,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: edb69d01d08c8c64f8aabadd17ab2117, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WeaponSway
-  swayAmount: 0.02
-  maxSway: 0.06
-  swaySmoothness: 0.2
+  playerLook: {fileID: 508270095}
+  intensity: 0.5
+  maxAmount: 0.05
+  smoothing: 8
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -1203,9 +1235,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraEffects
   controller: {fileID: 508270090}
-  head: {fileID: 1000425336}
-  bobAmount: 0.05
-  bobSpeed: 0.2
+  walkBobSpeed: 14
+  walkBobAmount: 0.05
+  runBobSpeed: 18
+  runBobAmount: 0.1
+  landShakeDuration: 0.2
+  landShakeForce: 0.15
+  tiltAmount: 2
+  tiltSpeed: 5
 --- !u!1 &1104780115
 GameObject:
   m_ObjectHideFlags: 0

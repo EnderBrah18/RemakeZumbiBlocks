@@ -36,6 +36,13 @@ public class PlayerLook : MonoBehaviour
     {
         HandleLook();
     }
+    void LateUpdate()
+    {
+        // Garante que a câmera (Head) esteja exatamente na posição do corpo (Body)
+        // Dica: No seu Body, crie um objeto vazio chamado "CameraAnchor" na altura dos olhos
+        // e arraste ele para uma nova variável 'anchor' aqui, se quiser mais controle.
+        head.position = body.position + new Vector3(0, 0.8f, 0); // Ajuste a altura (0.8f) conforme seu modelo
+    }
 
     void HandleLook()
     {
@@ -54,12 +61,17 @@ public class PlayerLook : MonoBehaviour
 
     public void AddRecoil(float force)
     {
-        // REMOVEMOS o DOTween que alterava o xRotation diretamente.
-        // Em vez disso, vamos dar um "soco" (Punch) na rotação da cabeça.
-        // Isso é muito mais limpo e não quebra o limite do Clamp.
+        head.DOComplete();
 
-        head.DOComplete(); // Para o recoil anterior se estiver atirando rápido
-        head.DOPunchRotation(new Vector3(-force, 0, 0), 0.1f, 10, 1);
+        // Adicionamos um pequeno valor aleatório no eixo Y e Z (Horizontal e Inclinação)
+        float randomSideRecoil = Random.Range(-force * 0.2f, force * 0.2f);
+
+        head.DOPunchRotation(new Vector3(-force, randomSideRecoil, randomSideRecoil), 0.1f, 5, 0.5f);
+    }
+
+    public Vector2 GetLookInput()
+    {
+        return lookInput;
     }
 }
 
