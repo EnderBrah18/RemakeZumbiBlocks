@@ -4,13 +4,6 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
 
-public enum EnemyPersonality
-{
-    Hostile,
-    Neutral,
-    Friendly
-}
-
 public enum EnemyFightType
 {
     Melee,
@@ -28,184 +21,163 @@ public enum EnemySizeType
 
 public class Enemy : MonoBehaviour, IDamageable
 {
-    public bool respawnableEnemy = false;
-    [SerializeField] private GameObject visualModel;
-
-    private Vector3 originalPosition;   
-
-    [Header("Basic Settings")]
-    public string enemyName;
-    public string enemyType;
-    public EnemyPersonality personality;
+    [Header("Stats")]
     public float maxHealth = 100;
     public float currentHealth;
-    public int attackDamage = 10;
-    public float detectionRange = 5f;
-    public float attackRange = 1.5f;
+    public float moveSpeed = 3.5f;
+    public float chaseSpeed = 5.5f; // Mais rápido quando persegue
 
-    [Header("Attack Settings")]
-    public float attackCooldown = 1f;
-    private float lastAttackTime = 0f;
+    [Header("Combat")]
+    public float attackDamage = 10f;
+    public float attackRange = 2f;
+    public float attackCooldown = 1.5f;
+    private float lastAttackTime;
 
-    [Header("Movement Settings")]
-    public bool patrol = false;
-    public Transform[] patrolPoints;
-    public float moveSpeed = 3f;
-    private int currentPatrolIndex = 0;
-    private NavMeshAgent agent;
+    [Header("Detection")]
+    public float detectionRange = 10f;
+    public float stopChasingRange = 15f; // Para não seguir o player pra sempre
+    private bool isChasing = false;
 
-    [Header("Tipo do Inimigo")]
-    public EnemySizeType enemySizeType;
-    public EnemyFightType enemyFightType;
-
-    [Header("Quest Settings")]
-    public bool isQuestTarget = false; // Ex: precisa ser morto para completar quest
-    public string questName;
+    [Header("Visuals & Feedback")]
+    public GameObject visualModel;
+    public ParticleSystem bloodEffect; // Feedback visual de tiro
+    public GameObject bloodPrefab; // Arraste o ARQUIVO do prefab aqui
+    private ParticleSystem bloodInstance; // Esta será a cópia na cena
 
     [Header("UI de Vida")]
+    public bool showHealthBar = true; // Define se este inimigo terá barra de vida
     public Canvas worldCanvas;
-    public Image healthBar;
+    public UnityEngine.UI.Image healthBar;
 
-    private Tween healthTween;
-
+    private NavMeshAgent agent;
     private Transform player;
+    private bool isDead = false;
 
     private void Start()
     {
         currentHealth = maxHealth;
-
         agent = GetComponent<NavMeshAgent>();
+        // PROTEÇÃO: Verifica se o agente existe antes de usar
         if (agent != null)
+        {
             agent.speed = moveSpeed;
+        }
+        else
+        {
+            Debug.LogError($"O inimigo {gameObject.name} está sem NavMeshAgent!");
+        }
 
-        player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        player = GameObject.FindGameObjectWithTag("Player").transform;
 
-        
+        agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;
+
+        if (worldCanvas != null)
+        {
+            worldCanvas.gameObject.SetActive(false);
+        }
+
+        if (bloodPrefab != null && bloodEffect == null)
+        {
+            GameObject go = Instantiate(bloodPrefab, transform);
+            bloodInstance = go.GetComponent<ParticleSystem>();
+            bloodEffect = bloodInstance;
+
+            // Opcional: Garante que a partícula começa desligada
+            bloodEffect.Stop();
+        }
     }
 
     private void Update()
     {
-        if (agent != null)
-            agent.speed = moveSpeed;
+        if (isDead || player == null) return;
 
-        switch (personality)
+        if (showHealthBar && worldCanvas != null && worldCanvas.gameObject.activeSelf)
         {
-            case EnemyPersonality.Hostile:
-                HandleHostileBehavior();
-                break;
-            case EnemyPersonality.Neutral:
-                HandleNeutralBehavior();
-                break;
-            case EnemyPersonality.Friendly:
-                HandleFriendlyBehavior();
-                break;
+            worldCanvas.transform.LookAt(worldCanvas.transform.position + Camera.main.transform.forward);
         }
 
-        if (patrol && personality != EnemyPersonality.Hostile)
-            HandlePatrol();
-    }
+        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-    #region Behavior
-    private void HandleHostileBehavior()
-    {
-        if (player == null || agent == null) return;
-
-        if (agent == null || !agent.isOnNavMesh || !agent.enabled)
-            return;
-
-        float dist = Vector3.Distance(transform.position, player.position);
-
-        // Jogador dentro da área de detecção
-        if (dist < detectionRange)
+        if (isChasing)
         {
-            agent.SetDestination(player.position);
-
-            // Atacar
-            if (dist <= attackRange)
-            {
-                AttackPlayer();
-            }
+            HandleChasing(distanceToPlayer);
         }
         else
         {
-            // Jogador fugiu -> voltar para posição original
-            agent.SetDestination(originalPosition);
+            if (distanceToPlayer <= detectionRange)
+            {
+                isChasing = true;
+                OnDetectedPlayer(); // Trigger para rugido ou animação
+            }
+        }
 
-            // Opcional: rotacionar lentamente enquanto volta
-            Vector3 dir = originalPosition - transform.position;
-            dir.y = 0;
-            if (dir != Vector3.zero)
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), Time.deltaTime * 5);
+    }
+
+    private void HandleChasing(float dist)
+    {
+        agent.SetDestination(player.position);
+        agent.speed = chaseSpeed;
+
+        if (dist <= attackRange)
+        {
+            TryAttack();
+        }
+
+        if (dist > stopChasingRange)
+        {
+            isChasing = false;
+            agent.speed = moveSpeed;
         }
     }
 
-    private void HandleNeutralBehavior()
+    private void TryAttack()
     {
-        // Por padrão, neutros não atacam e só patrulham
-        HandlePatrol();
-    }
-
-    private void HandleFriendlyBehavior()
-    {
-        // Amigáveis podem seguir o jogador ou dar buffs, etc.
-    }
-
-    private void HandlePatrol()
-    {
-        if (patrol && patrolPoints.Length > 0 && agent != null)
+        if (Time.time >= lastAttackTime + attackCooldown)
         {
-            agent.SetDestination(patrolPoints[currentPatrolIndex].position);
+            float dist = Vector3.Distance(transform.position, player.position);
 
-            if (Vector3.Distance(transform.position, patrolPoints[currentPatrolIndex].position) < 0.2f)
+            if (dist <= attackRange)
             {
-                currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
+                lastAttackTime = Time.time;
+
+                // "Trava" o zumbi no lugar por um breve momento após o bote
+                StartCoroutine(FreezeMovement(0.5f));
+
+                if (player.TryGetComponent(out IDamageable pDamage))
+                {
+                    pDamage.Damage(attackDamage);
+                    // Feedback visual do "bote"
+                    visualModel.transform.DOPunchPosition(transform.forward * 0.7f, 0.3f);
+                }
             }
         }
     }
-    #endregion
 
-    #region Combat
-    private void AttackPlayer()
+    // Pequena rotina para impedir que ele continue empurrando freneticamente
+    IEnumerator FreezeMovement(float duration)
     {
-        // Cooldown
-        if (Time.time < lastAttackTime + attackCooldown)
-            return;
-
-        lastAttackTime = Time.time;
-
-        //Player playerComponent = player.GetComponent<Player>();
-        //if (playerComponent == null) return;
-
-        // Virar para o jogador
-        Vector3 dir = player.position - transform.position;
-        dir.y = 0;
-        transform.rotation = Quaternion.LookRotation(dir);
-
-        // Atacar
-        //playerComponent.TakeDamage(Mathf.RoundToInt(attackDamage));
-
-        Debug.Log($"{enemyName} atacou o jogador causando {attackDamage} de dano!");
+        agent.isStopped = true;
+        yield return new WaitForSeconds(duration);
+        if (!isDead) agent.isStopped = false;
     }
-
-    public bool isDead = false;
 
     public void Damage(float amount)
     {
-        Debug.Log("TOMOU DANO");
-
-        if (isDead) return; // <- evita lógica de morte repetida
+        if (isDead) return;
 
         currentHealth -= amount;
+        isChasing = true; // Se tomou tiro, ele sabe onde você está!
 
-        if (worldCanvas != null)
-            worldCanvas.gameObject.SetActive(true);
+        // Feedback de dano
+        if (visualModel) visualModel.transform.DOShakePosition(0.1f, 0.1f);
 
-        UpdateHealthUI();
-
-        if (currentHealth <= 0)
+        //if (bloodEffect) bloodEffect.Play();
+        if (showHealthBar && worldCanvas != null && healthBar != null)
         {
-            Die();
+            UpdateHealthUI();
         }
+
+        if (currentHealth <= 0) Die();
     }
 
     private void Die()
@@ -213,106 +185,45 @@ public class Enemy : MonoBehaviour, IDamageable
         if (isDead) return;
         isDead = true;
 
-
-        Debug.Log($"{enemyName} morreu!");
-
-        HideHealthUI();
-        if (respawnableEnemy)
+        if (agent != null)
         {
-            visualModel.SetActive(true);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
-    }
-    #endregion
-
-    public void InitializeAfterNavmesh()
-    {
-        if (agent == null)
-            agent = GetComponent<NavMeshAgent>();
-
-        // tenta encontrar a posição válida mais próxima no navmesh
-        NavMeshHit hit;
-        if (NavMesh.SamplePosition(transform.position, out hit, 5f, NavMesh.AllAreas))
-        {
-            agent.Warp(hit.position);
-            originalPosition = hit.position;
-
-            Debug.Log($"{enemyName}: Posicionamento corrigido após navmesh: {originalPosition}");
-        }
-        else
-        {
-            originalPosition = transform.position;
-            Debug.LogWarning($"{enemyName}: NÃO encontrou posição no navmesh após build!");
-        }
-    }
-
-    public void ApplyKnockback(Vector3 direction, float force)
-    {
-        StartCoroutine(KnockbackCoroutine(direction, force));
-    }
-
-    private IEnumerator KnockbackCoroutine(Vector3 dir, float force)
-    {
-        if (agent == null) yield break;
-
-        // desativa o navmesh agent temporariamente
-        if (agent != null && agent.isOnNavMesh)
-        {
+            // 1. Para o movimento imediatamente
             agent.isStopped = true;
+
+            // 2. DESATIVA a atualização de posição e rotação pelo NavMesh
+            // Isso impede que o agente "puxe" o inimigo de volta para cima
+            agent.updatePosition = false;
+            agent.updateRotation = false;
+
+            // 3. Opcional: Desativa o componente para garantir que não há conflitos
+            agent.enabled = false;
         }
 
-        agent.updatePosition = false;
-        agent.updateRotation = false;
+        // 4. Se tiveres um Animator, desativa-o ou ativa a trigger de morte
+        // GetComponent<Animator>().enabled = false;
 
-        float t = 0f;
-        float duration = 0.15f; // tempo do empurrão
+        // 5. Animação de queda (Agora o NavMesh não vai interferir)
+        transform.DORotate(new Vector3(-90, 0, 0), 0.5f).SetEase(Ease.OutBounce);
 
-        Vector3 start = transform.position;
-        Vector3 end = start + dir.normalized * force;
+        // 6. Remover o Collider para o player não tropeçar no cadáver
+        if (TryGetComponent(out Collider col)) col.enabled = false;
 
-        // anima o deslocamento manualmente
-        while (t < 1f)
-        {
-            t += Time.deltaTime / duration;
-            transform.position = Vector3.Lerp(start, end, t);
-            yield return null;
-        }
-
-        // reativa o navmesh agent
-        agent.Warp(transform.position); // atualiza a posição no navmesh
-        agent.updatePosition = true;
-        agent.updateRotation = true;
-        if (agent != null && agent.isOnNavMesh)
-        {
-            agent.isStopped = false;
-        }
+        Destroy(gameObject, 3f);
     }
 
-    public void UpdateHealthUI(bool instant = false)
+    private void UpdateHealthUI()
     {
-        if (healthBar == null) return;
+        // Ativa o Canvas apenas no primeiro dano recebido
+        if (!worldCanvas.gameObject.activeSelf)
+            worldCanvas.gameObject.SetActive(true);
 
-        float fill = (float)currentHealth / maxHealth;
-
-        if (healthTween != null && healthTween.IsActive())
-            healthTween.Kill();
-
-        // Cria a nova tween da barra de vida
-        healthTween = healthBar
-            .DOFillAmount(fill, 0.25f)
-            .SetEase(Ease.OutQuad);
-
+        float fill = currentHealth / maxHealth;
+        healthBar.DOFillAmount(fill, 0.2f);
     }
 
-    private void HideHealthUI()
+    private void OnDetectedPlayer()
     {
-        if (worldCanvas != null)
-            worldCanvas.gameObject.SetActive(false);
-
-        healthTween?.Kill();
-
+        // Som de rugido ou efeito visual de "!"
+        visualModel.transform.DOPunchScale(Vector3.one * 0.2f, 0.5f);
     }
 }

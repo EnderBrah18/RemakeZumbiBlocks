@@ -66,6 +66,7 @@ public class Weapon : MonoBehaviour
         nextFireTime = Time.time + 1f / weaponData.fireRate;
 
         currentAmmo--;
+        HUDManager.Instance.UpdateAmmoUI(currentAmmo, playerCombat.GetStockForType(weaponData.ammoType));
 
         Shoot();
 
@@ -106,11 +107,13 @@ public class Weapon : MonoBehaviour
         recoilPivot.DOLocalMoveY(0, 0.2f);
 
         isReloading = false;
+        playerCombat.RefreshHUD();
     }
 
     void Shoot()
     {
         ApplyRecoil();
+        playerLook.ApplyRotationShake(new Vector3(1f, 1f, 0.5f), 0.1f);
         if (weaponData.weaponType == WeaponType.Hitscan) HitscanShot();
         else ProjectileShot();
     }
@@ -140,6 +143,24 @@ public class Weapon : MonoBehaviour
         {
             Debug.Log("Atingiu: " + hit.collider.name);
 
+            // 1. Tenta encontrar o script Enemy no objeto atingido
+            Enemy enemy = hit.collider.GetComponentInParent<Enemy>();
+
+
+
+            if (enemy != null)
+            {
+                // 2. Se o inimigo tiver o efeito, posiciona e rotaciona
+                if (enemy.bloodEffect != null)
+                {
+                    enemy.bloodEffect.transform.position = hit.point;
+                    // A 'normal' faz o sangue espirrar para longe da superfície atingida
+                    enemy.bloodEffect.transform.forward = hit.normal;
+                    enemy.bloodEffect.Play();
+                }
+            }
+
+            // 3. Aplica o dano normalmente
             float finalDamage = CalculateDamage(hit);
             ApplyDamage(hit.collider, finalDamage);
         }

@@ -130,6 +130,7 @@ public class PlayerCombat : MonoBehaviour
 
         // EQUIPA passando a munição que estava guardada no novo slot
         EquipWeapon(inventory[currentSlot], ammoInSlots[currentSlot]);
+        RefreshHUD();
 
         weaponHolder.localPosition = new Vector3(0, -1f, 0);
         weaponHolder.DOLocalMoveY(0, equipTime / 2).SetEase(Ease.OutBack);
@@ -293,5 +294,26 @@ public class PlayerCombat : MonoBehaviour
         }
         // Adicione os outros tipos aqui...
         return 0;
+    }
+
+    public int GetStockForType(AmmoType type)
+    {
+        switch (type)
+        {
+            case AmmoType.Pistol: return pistolAmmo;
+            case AmmoType.Rifle: return rifleAmmo;
+            case AmmoType.Shotgun: return shotgunAmmo;
+            default: return 0;
+        }
+    }
+
+    // Chame isso sempre que trocar de arma ou pegar munição
+    public void RefreshHUD()
+    {
+        if (currentWeapon == null) return;
+
+        int stock = GetStockForType(currentWeapon.weaponData.ammoType);
+        HUDManager.Instance.UpdateAmmoUI(currentWeapon.GetCurrentAmmo(), stock);
+        HUDManager.Instance.UpdateWeaponName(currentWeapon.weaponData.weaponName);
     }
 }
