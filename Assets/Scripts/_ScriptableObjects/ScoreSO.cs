@@ -4,10 +4,24 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "Data/Score")]
 public class ScoreSO : ScriptableObject
 {
-  public int currentScore;
-  public int highScore;
-  public int currentWave;
-  public int highestWave;
+    public int currentScore;
+    public int highScore;
+    public int currentWave;
+    public int highestWave;
+    public int totalCoins;
+
+
+    public void EndRun()
+    {
+        UpdateHighScores();
+
+        int coinsGained = currentScore / 10;
+        totalCoins += coinsGained;
+
+        Debug.Log($"Run ended! Score: {currentScore}, Coins gained: {coinsGained}, Total coins: {totalCoins}");
+
+        ResetCurrentRun();
+    }
 
     public void UpdateHighScores()
     {

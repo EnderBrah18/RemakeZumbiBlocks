@@ -149,7 +149,7 @@ public class Enemy : MonoBehaviour, IDamageable
                 {
                     pDamage.Damage(attackDamage);
                     // Feedback visual do "bote"
-                    visualModel.transform.DOPunchPosition(transform.forward * 0.7f, 0.3f);
+                    visualModel.transform.DOPunchPosition(transform.forward * 0.7f, 0.3f).SetLink(gameObject);
                 }
             }
         }
@@ -231,5 +231,10 @@ public class Enemy : MonoBehaviour, IDamageable
     {
         // Som de rugido ou efeito visual de "!"
         visualModel.transform.DOPunchScale(Vector3.one * 0.2f, 0.5f);
+    }
+
+    private void OnDestroy()
+    {
+        transform.DOKill();
     }
 }

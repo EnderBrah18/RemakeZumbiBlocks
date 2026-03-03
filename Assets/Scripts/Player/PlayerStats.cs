@@ -1,5 +1,6 @@
 using DG.Tweening;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class PlayerStats : MonoBehaviour, IDamageable
@@ -68,11 +69,21 @@ public class PlayerStats : MonoBehaviour, IDamageable
     {
         Debug.Log("O Jogador Morreu!");
 
-        scoreData.UpdateHighScores(); // Atualiza os recordes antes de resetar a run
-        scoreData.ResetCurrentRun(); // Reseta a pontuação e wave atuais para a próxima tentativa
+        scoreData.EndRun(); // Atualiza os high scores e total de moedas
         WaveManager.Instance.waveStarted = false; // Reseta o estado das waves para o início
+
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        DOTween.KillAll();
+        SceneManager.LoadScene("MainMenu");
 
         // Aqui podes recarregar a cena ou mostrar tela de Game Over
         // UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+    }
+
+    private void OnDestroy()
+    {
+        transform.DOKill();
     }
 }
