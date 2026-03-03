@@ -181,6 +181,15 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Accept"",
+                    ""type"": ""Button"",
+                    ""id"": ""25cb82f9-730c-4bbf-a7bc-58b2e0c1e689"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -337,6 +346,17 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""action"": ""Slot2"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""ff55e876-edd6-4de8-b12c-1640d176dfe8"",
+                    ""path"": ""<Keyboard>/enter"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Accept"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -355,6 +375,7 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         m_Player_Drop = m_Player.FindAction("Drop", throwIfNotFound: true);
         m_Player_Slot1 = m_Player.FindAction("Slot1", throwIfNotFound: true);
         m_Player_Slot2 = m_Player.FindAction("Slot2", throwIfNotFound: true);
+        m_Player_Accept = m_Player.FindAction("Accept", throwIfNotFound: true);
     }
 
     ~@PlayerInputActions()
@@ -445,6 +466,7 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Drop;
     private readonly InputAction m_Player_Slot1;
     private readonly InputAction m_Player_Slot2;
+    private readonly InputAction m_Player_Accept;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -496,6 +518,10 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/Slot2".
         /// </summary>
         public InputAction @Slot2 => m_Wrapper.m_Player_Slot2;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/Accept".
+        /// </summary>
+        public InputAction @Accept => m_Wrapper.m_Player_Accept;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -552,6 +578,9 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
             @Slot2.started += instance.OnSlot2;
             @Slot2.performed += instance.OnSlot2;
             @Slot2.canceled += instance.OnSlot2;
+            @Accept.started += instance.OnAccept;
+            @Accept.performed += instance.OnAccept;
+            @Accept.canceled += instance.OnAccept;
         }
 
         /// <summary>
@@ -593,6 +622,9 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
             @Slot2.started -= instance.OnSlot2;
             @Slot2.performed -= instance.OnSlot2;
             @Slot2.canceled -= instance.OnSlot2;
+            @Accept.started -= instance.OnAccept;
+            @Accept.performed -= instance.OnAccept;
+            @Accept.canceled -= instance.OnAccept;
         }
 
         /// <summary>
@@ -703,5 +735,12 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnSlot2(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Accept" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnAccept(InputAction.CallbackContext context);
     }
 }

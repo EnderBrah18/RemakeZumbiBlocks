@@ -21,6 +21,8 @@ public enum EnemySizeType
 
 public class Enemy : MonoBehaviour, IDamageable
 {
+    public ScoreSO scoreData; // Referência ao ScriptableObject para atualizar a pontuação
+
     [Header("Stats")]
     public float maxHealth = 100;
     public float currentHealth;
@@ -209,6 +211,10 @@ public class Enemy : MonoBehaviour, IDamageable
         if (TryGetComponent(out Collider col)) col.enabled = false;
 
         Destroy(gameObject, 3f);
+        WaveManager.Instance.currentEnemiesAlive--; // Decrementa o contador de inimigos vivos na WaveManager
+        scoreData.currentScore++; // Incrementa a pontuação do jogador
+
+        Debug.Log($"{gameObject.name} morreu! Enemies alive: {WaveManager.Instance.currentEnemiesAlive}");
     }
 
     private void UpdateHealthUI()

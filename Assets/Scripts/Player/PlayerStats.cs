@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class PlayerStats : MonoBehaviour, IDamageable
 {
+    public ScoreSO scoreData; // Referência ao ScriptableObject para atualizar a pontuação
+
     public float maxHealth = 100f;
     public float currentHealth;
 
@@ -50,6 +52,8 @@ public class PlayerStats : MonoBehaviour, IDamageable
             // Anima a variável shakeOffset do PlayerLook
             DOTween.Shake(() => look.shakeOffset, x => look.shakeOffset = x, 0.3f, 5f, 20);
         }
+
+        if (currentHealth <= 0) Die();
     }
 
     void UpdateUI()
@@ -63,6 +67,11 @@ public class PlayerStats : MonoBehaviour, IDamageable
     void Die()
     {
         Debug.Log("O Jogador Morreu!");
+
+        scoreData.UpdateHighScores(); // Atualiza os recordes antes de resetar a run
+        scoreData.ResetCurrentRun(); // Reseta a pontuação e wave atuais para a próxima tentativa
+        WaveManager.Instance.waveStarted = false; // Reseta o estado das waves para o início
+
         // Aqui podes recarregar a cena ou mostrar tela de Game Over
         // UnityEngine.SceneManagement.SceneManager.LoadScene(0);
     }
