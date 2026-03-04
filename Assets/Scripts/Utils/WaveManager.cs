@@ -125,4 +125,9 @@ public class WaveManager : MonoBehaviour
         NextWave();
         waveStarted = true; // Retoma o spawn
     }
+
+    private void OnApplicationQuit()
+    {
+        scoreData.SaveProgress();
+    }
 }

@@ -39,6 +39,7 @@ public class GameOverManager : MonoBehaviour
     {
         // 1. Dados e HUD do Player
         scoreData.EndRun();
+        scoreData.SaveProgress();
         if (WaveManager.Instance != null) WaveManager.Instance.waveStarted = false;
 
         if (hudCanvas != null) hudCanvas.SetActive(false);

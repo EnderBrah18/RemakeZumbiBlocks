@@ -15,6 +15,16 @@ public class MenuScore : MonoBehaviour
     public string sceneToLoad;
     public string spawnPointID = "Default";
 
+    void Awake()
+    {
+        // 1. Carrega os dados do disco para o Scriptable Object assim que o Menu abre
+        if (scoreData != null)
+        {
+            scoreData.LoadProgress();
+            UpdateScoreUI();
+        }
+    }
+
     private void Start()
     {
         UpdateScoreUI();

@@ -10,6 +10,27 @@ public class ScoreSO : ScriptableObject
     public int highestWave;
     public int totalCoins;
 
+    public void SaveProgress()
+    {
+        PlayerPrefs.SetInt("HighScore", highScore);
+        PlayerPrefs.SetInt("HighestWave", highestWave);
+        PlayerPrefs.SetInt("TotalCoins", totalCoins);
+
+        PlayerPrefs.Save(); // Força a gravação no disco
+        Debug.Log("Dados salvos no PlayerPrefs!");
+    }
+
+    // Chame isso no início do jogo (ex: no Awake do WaveManager ou Player)
+    public void LoadProgress()
+    {
+        // O segundo valor (0) é o padrão caso não exista nada salvo
+        highScore = PlayerPrefs.GetInt("HighScore", 0);
+        highestWave = PlayerPrefs.GetInt("HighestWave", 0);
+        totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+
+        Debug.Log("Dados carregados do PlayerPrefs!");
+    }
+
 
     public void EndRun()
     {
