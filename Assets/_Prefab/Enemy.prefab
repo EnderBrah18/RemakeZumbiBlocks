@@ -487,16 +487,22 @@ MonoBehaviour:
   moveSpeed: 3
   chaseSpeed: 5.5
   attackDamage: 10
-  attackRange: 2.3
+  attackRange: 2.45
   attackCooldown: 1
-  detectionRange: 5
-  stopChasingRange: 15
+  detectionRange: 15
+  stopChasingRange: 20
   visualModel: {fileID: 155795599581333071}
   bloodEffect: {fileID: 0}
   bloodPrefab: {fileID: 406776891491115383, guid: 1c493765d0177604bb39259bedc9ae33, type: 3}
   showHealthBar: 1
   worldCanvas: {fileID: 7976494727561214700}
   healthBar: {fileID: 2961102157975043196}
+  generalDropChance: 50
+  possibleDrops:
+  - itemPrefab: {fileID: 8367795248359808685, guid: 9526c502469c2b64a8e86c7ff9f52d07, type: 3}
+    dropChance: 10
+  - itemPrefab: {fileID: 8367795248359808685, guid: 112fc3a5cea45624187c3592a41a421b, type: 3}
+    dropChance: 10
 --- !u!195 &6997182360076674063
 NavMeshAgent:
   m_ObjectHideFlags: 0

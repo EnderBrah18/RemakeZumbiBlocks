@@ -5,7 +5,6 @@ using UnityEngine.UI;
 
 public class PlayerStats : MonoBehaviour, IDamageable
 {
-    public ScoreSO scoreData; // Referência ao ScriptableObject para atualizar a pontuação
 
     public float maxHealth = 100f;
     public float currentHealth;
@@ -69,14 +68,9 @@ public class PlayerStats : MonoBehaviour, IDamageable
     {
         Debug.Log("O Jogador Morreu!");
 
-        scoreData.EndRun(); // Atualiza os high scores e total de moedas
-        WaveManager.Instance.waveStarted = false; // Reseta o estado das waves para o início
 
 
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-        DOTween.KillAll();
-        SceneManager.LoadScene("MainMenu");
+        GameOverManager.Instance.TriggerGameOver();
 
         // Aqui podes recarregar a cena ou mostrar tela de Game Over
         // UnityEngine.SceneManagement.SceneManager.LoadScene(0);

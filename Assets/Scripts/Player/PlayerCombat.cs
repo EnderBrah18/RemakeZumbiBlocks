@@ -78,6 +78,8 @@ public class PlayerCombat : MonoBehaviour
 
         if (inventory[currentSlot] != null)
             EquipWeapon(inventory[currentSlot], ammoInSlots[currentSlot]);
+
+        RefreshHUD();
     }
 
     void Update()
@@ -233,7 +235,7 @@ public class PlayerCombat : MonoBehaviour
             else if (hit.collider.TryGetComponent(out AmmoPickup ammoBox))
             {
                 ammoBox.GiveAmmo(this);
-                // O Destroy já acontece dentro do método GiveAmmo do script que criamos antes
+                // RefreshHUD() agora é chamado lá dentro, então não precisa estar aqui!
             }
         }
     }

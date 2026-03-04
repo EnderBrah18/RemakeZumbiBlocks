@@ -15,7 +15,7 @@ public class ScoreSO : ScriptableObject
     {
         UpdateHighScores();
 
-        int coinsGained = currentScore / 10;
+        int coinsGained = currentScore * currentWave;
         totalCoins += coinsGained;
 
         Debug.Log($"Run ended! Score: {currentScore}, Coins gained: {coinsGained}, Total coins: {totalCoins}");

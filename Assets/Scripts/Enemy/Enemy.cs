@@ -1,5 +1,6 @@
 using DG.Tweening;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
@@ -54,6 +55,10 @@ public class Enemy : MonoBehaviour, IDamageable
     private NavMeshAgent agent;
     private Transform player;
     private bool isDead = false;
+
+    [Header("Loot System")]
+    [Range(0, 100)] public float generalDropChance = 50f; // Chance global de dropar ALGO (0 a 100)
+    public List<LootDrop> possibleDrops; // Lista expansível de prefabs (Caixa Rifle, Caixa Pistola, etc)
 
     private void Start()
     {
@@ -210,11 +215,32 @@ public class Enemy : MonoBehaviour, IDamageable
         // 6. Remover o Collider para o player não tropeçar no cadáver
         if (TryGetComponent(out Collider col)) col.enabled = false;
 
+        TryDropLoot();
+
         Destroy(gameObject, 3f);
         WaveManager.Instance.currentEnemiesAlive--; // Decrementa o contador de inimigos vivos na WaveManager
         scoreData.currentScore++; // Incrementa a pontuação do jogador
 
         Debug.Log($"{gameObject.name} morreu! Enemies alive: {WaveManager.Instance.currentEnemiesAlive}");
+    }
+    private void TryDropLoot()
+    {
+        // 1. Verifica se vai dropar alguma coisa nesta morte
+        float randomRoll = Random.Range(0f, 100f);
+        if (randomRoll > generalDropChance) return;
+
+        if (possibleDrops == null || possibleDrops.Count == 0) return;
+
+        // 2. Escolhe um item aleatório da lista
+        // Você pode expandir isso para usar os pesos (dropChance) de cada item, 
+        // mas para começar, vamos pegar um aleatório simples:
+        int randomIndex = Random.Range(0, possibleDrops.Count);
+        LootDrop selectedDrop = possibleDrops[randomIndex];
+
+        // 3. Instancia o item na posição do inimigo
+        // Subimos um pouco no eixo Y (0.5f) para não spawnar dentro do chão
+        Vector3 spawnPos = transform.position + Vector3.up * 0.5f;
+        Instantiate(selectedDrop.itemPrefab, spawnPos, Quaternion.identity);
     }
 
     private void UpdateHealthUI()
@@ -237,4 +263,11 @@ public class Enemy : MonoBehaviour, IDamageable
     {
         transform.DOKill();
     }
+}
+
+[System.Serializable]
+public class LootDrop
+{
+    public GameObject itemPrefab;
+    [Range(0, 100)] public float dropChance; // Chance específica deste item cair
 }
