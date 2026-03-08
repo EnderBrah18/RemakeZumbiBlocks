@@ -40,34 +40,32 @@ public class EnemySensors : MonoBehaviour
     // Verifica se há chão à frente para decidir se deve "dropar" ou parar
     public bool HasGroundAhead(Vector3 direction)
     {
-        Vector3 origin =
-            transform.position +
-            direction.normalized * 0.5f +
-            Vector3.up * 0.5f;
+        // Aumente o 0.6f para 1.2f. 
+        // Isso faz ele detectar o abismo bem antes, dando margem para ele desviar para o centro.
+        Vector3 origin = transform.position + direction.normalized * 1.2f + Vector3.up * 0.5f;
 
-        bool groundAhead = Physics.Raycast(origin, Vector3.down, groundCheckDist + 0.5f, groundMask);
+        bool hasGround = Physics.Raycast(
+            origin,
+            Vector3.down,
+            out RaycastHit hit,
+            2.5f, // Distância do raio
+            groundMask
+        );
 
-        Debug.DrawRay(origin, Vector3.down * (groundCheckDist + 0.5f),
-            groundAhead ? Color.green : Color.red);
-
-        return groundAhead;
+        Debug.DrawRay(origin, Vector3.down * 2.5f, hasGround ? Color.green : Color.red);
+        return hasGround;
     }
 
     public bool IsGrounded()
     {
-        Vector3 origin = transform.position + Vector3.up * 0.2f;
+        // Check de pé no chão central para evitar flutuação
+        return Physics.Raycast(transform.position + Vector3.up * 0.1f, Vector3.down, 0.3f, groundMask);
+    }
 
-        bool grounded = Physics.SphereCast(
-    transform.position + Vector3.up * 0.3f,
-    0.3f,
-    Vector3.down,
-    out RaycastHit hit,
-    groundCheckDist,
-    groundMask
-);
-
-        Debug.DrawRay(origin, Vector3.down * groundCheckDist, grounded ? Color.green : Color.red);
-
-        return grounded;
+    public bool IsFootGrounded(Vector3 sideOffset)
+    {
+        // sideOffset será transform.right * 0.4f ou -transform.right * 0.4f
+        Vector3 origin = transform.position + Vector3.up * 0.5f + sideOffset;
+        return Physics.Raycast(origin, Vector3.down, 1.2f, groundMask);
     }
 }
