@@ -6,17 +6,21 @@ public class Spawner : MonoBehaviour
     public float spawnRadius = 2f;
 
 
-    public void SpawnSingleEnemy()
+    public GameObject SpawnSingleEnemy() // Mudamos de void para GameObject
     {
         Vector2 randomPoint = Random.insideUnitCircle * spawnRadius;
-        // O 'Y' deve ser 0 (ou a altura do chão) e o 'Y' do círculo vira o 'Z' do mundo
+
         Vector3 spawnPosition = new Vector3(
             transform.position.x + randomPoint.x,
             transform.position.y,
             transform.position.z + randomPoint.y
         );
 
-        Instantiate(enemyToSpawn, spawnPosition, Quaternion.identity);
+        // Armazenamos a instância em uma variável
+        GameObject newEnemy = Instantiate(enemyToSpawn, spawnPosition, Quaternion.identity);
+
+        // Retornamos o objeto para quem chamou o método (o WaveManager)
+        return newEnemy;
     }
 
 }

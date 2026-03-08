@@ -444,7 +444,10 @@ GameObject:
   m_Component:
   - component: {fileID: 3525986682277910620}
   - component: {fileID: 4660462721419179498}
-  - component: {fileID: 6997182360076674063}
+  - component: {fileID: 5146420415728896678}
+  - component: {fileID: 7221111387198225603}
+  - component: {fileID: 3789788431924979632}
+  - component: {fileID: 4212961933929057639}
   m_Layer: 11
   m_Name: Enemy
   m_TagString: Untagged
@@ -486,11 +489,14 @@ MonoBehaviour:
   currentHealth: 0
   moveSpeed: 3
   chaseSpeed: 5.5
+  speedMultiplier: 1
   attackDamage: 10
   attackRange: 2.45
   attackCooldown: 1
-  detectionRange: 15
   stopChasingRange: 20
+  isChasing: 0
+  targetPlayer: {fileID: 0}
+  memoryAfterDamage: 5
   visualModel: {fileID: 155795599581333071}
   bloodEffect: {fileID: 0}
   bloodPrefab: {fileID: 406776891491115383, guid: 1c493765d0177604bb39259bedc9ae33, type: 3}
@@ -503,25 +509,99 @@ MonoBehaviour:
     dropChance: 10
   - itemPrefab: {fileID: 8367795248359808685, guid: 112fc3a5cea45624187c3592a41a421b, type: 3}
     dropChance: 10
---- !u!195 &6997182360076674063
-NavMeshAgent:
+  intelligenceLevel: 0.5
+  groupDetectionRadius: 5
+  role: 0
+--- !u!114 &5146420415728896678
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8192542225605684870}
   m_Enabled: 1
-  m_AgentTypeID: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4aef127c9e1a8f4f962aac42437c827, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMovement
+  moveSpeed: 5
+  rotationSpeed: 15
+  stoppingDistance: 1.2
+  separationRadius: 2
+  separationWeight: 1.2
+  maxSeparationForce: 1.2
+  separationSmooth: 8
+--- !u!114 &7221111387198225603
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8192542225605684870}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32b2574977b6f8243ab5ac44b3b8dcb2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemySensors
+  viewDistance: 15
+  viewAngle: 90
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 4104
+  targetMask:
+    serializedVersion: 2
+    m_Bits: 128
+  groundCheckDist: 1.5
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4104
+--- !u!54 &3789788431924979632
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8192542225605684870}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 80
+  m_CollisionDetection: 1
+--- !u!136 &4212961933929057639
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8192542225605684870}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
   m_Radius: 0.5
-  m_Speed: 50
-  m_Acceleration: 8
-  avoidancePriority: 50
-  m_AngularSpeed: 120
-  m_StoppingDistance: 2
-  m_AutoTraverseOffMeshLink: 1
-  m_AutoBraking: 1
-  m_AutoRepath: 1
-  m_Height: 2.7
-  m_BaseOffset: 0
-  m_WalkableMask: 4294967295
-  m_ObstacleAvoidanceType: 4
+  m_Height: 1
+  m_Direction: 1
+  m_Center: {x: 0, y: 1, z: 0}

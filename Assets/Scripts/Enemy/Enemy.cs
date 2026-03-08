@@ -2,7 +2,6 @@ using DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;
 using UnityEngine.UI;
 
 public enum EnemyFightType
@@ -10,6 +9,13 @@ public enum EnemyFightType
     Melee,
     Ranged,
     Boss
+}
+
+public enum SocialRole
+{
+    Leader,     // O cérebro do grupo
+    Soldier,    // Segue as ordens do líder e preenche slots
+    LoneWolf    // Ignora o grupo, usa a lógica de avoidance antiga
 }
 
 public enum EnemySizeType
@@ -30,6 +36,9 @@ public class Enemy : MonoBehaviour, IDamageable
     public float moveSpeed = 3.5f;
     public float chaseSpeed = 5.5f; // Mais rápido quando persegue
 
+    [HideInInspector]
+    public float speedMultiplier = 1f;
+
     [Header("Combat")]
     public float attackDamage = 10f;
     public float attackRange = 2f;
@@ -37,9 +46,12 @@ public class Enemy : MonoBehaviour, IDamageable
     private float lastAttackTime;
 
     [Header("Detection")]
-    public float detectionRange = 10f;
     public float stopChasingRange = 15f; // Para não seguir o player pra sempre
-    private bool isChasing = false;
+    public bool isChasing = false;
+    public Transform targetPlayer;
+
+    private float lastDamageTime;
+    public float memoryAfterDamage = 5f;
 
     [Header("Visuals & Feedback")]
     public GameObject visualModel;
@@ -51,8 +63,6 @@ public class Enemy : MonoBehaviour, IDamageable
     public bool showHealthBar = true; // Define se este inimigo terá barra de vida
     public Canvas worldCanvas;
     public UnityEngine.UI.Image healthBar;
-
-    private NavMeshAgent agent;
     private Transform player;
     private bool isDead = false;
 
@@ -60,24 +70,33 @@ public class Enemy : MonoBehaviour, IDamageable
     [Range(0, 100)] public float generalDropChance = 50f; // Chance global de dropar ALGO (0 a 100)
     public List<LootDrop> possibleDrops; // Lista expansível de prefabs (Caixa Rifle, Caixa Pistola, etc)
 
+    [Header("AI Intelligence")]
+    [Range(0, 1)] public float intelligenceLevel = 0.5f;
+
+    private EnemySensors sensors;
+    private EnemyMovement movement;
+
+    [Header("Group Logic")]
+    public float groupDetectionRadius = 5f;
+    private Vector3 currentSlotPosition;
+
+    [Header("Social Settings")]
+    public SocialRole role;
+
+    [System.NonSerialized]
+    public EnemyGroup currentGroup;
+
+    private void Awake()
+    {
+        sensors = GetComponent<EnemySensors>();
+        movement = GetComponent<EnemyMovement>();
+    }
+
     private void Start()
     {
+        Debug.Log($"{name} iniciou com role = {role} e group = {currentGroup}");
+
         currentHealth = maxHealth;
-        agent = GetComponent<NavMeshAgent>();
-        // PROTEÇÃO: Verifica se o agente existe antes de usar
-        if (agent != null)
-        {
-            agent.speed = moveSpeed;
-        }
-        else
-        {
-            Debug.LogError($"O inimigo {gameObject.name} está sem NavMeshAgent!");
-        }
-
-        player = GameObject.FindGameObjectWithTag("Player").transform;
-
-        agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;
-
         if (worldCanvas != null)
         {
             worldCanvas.gameObject.SetActive(false);
@@ -92,91 +111,158 @@ public class Enemy : MonoBehaviour, IDamageable
             // Opcional: Garante que a partícula começa desligada
             bloodEffect.Stop();
         }
+
+       // float roll = Random.value;
+        //if (roll < 0.1f) role = SocialRole.Leader; // 10% de chance de ser líder nato
+       // else if (roll < 0.2f) role = SocialRole.LoneWolf; // 10% de lobo solitário
+       // else role = SocialRole.Soldier;
+
+        if (role == SocialRole.Leader && currentGroup == null)
+        {
+            currentGroup = new EnemyGroup();
+            currentGroup.leader = this;
+            currentGroup.members.Add(this);
+            Debug.Log($"<color=orange>{name} nasceu como Líder e inicializou seu próprio grupo.</color>");
+        }
+
+        speedMultiplier = Random.Range(0.9f, 1.2f);
     }
 
     private void Update()
     {
-        if (isDead || player == null) return;
+        if (isDead) return;
 
+        HandleGroupLogic();
+
+        HandleAI();
+        HandleDetection();
+        UpdateUI();
+
+    }
+    private void TryAttack()
+    {
+        if (targetPlayer == null) return;
+
+        // Verifica a distância real novamente antes de aplicar o dano
+        float currentDist = Vector3.Distance(transform.position, targetPlayer.position);
+
+        if (Time.time >= lastAttackTime + attackCooldown && currentDist <= attackRange * 1.2f)
+        {
+            lastAttackTime = Time.time;
+
+            // Garante que estamos pegando o componente IDamageable do Player
+            // e não de qualquer outra coisa que possa ter entrado no targetPlayer
+            if (targetPlayer.CompareTag("Player") && targetPlayer.TryGetComponent(out IDamageable pDamage))
+            {
+                pDamage.Damage(attackDamage);
+
+                if (visualModel)
+                    visualModel.transform.DOPunchPosition(transform.forward * 0.7f, 0.3f).SetLink(gameObject);
+
+                Debug.Log($"Inimigo atacou o player. Distância: {currentDist}");
+            }
+        }
+    }
+
+    private void HandleDetection()
+    {
+        // 1. Tenta detectar visualmente
+        Transform detected = sensors != null ? sensors.CheckVisualDetection() : null;
+
+        // 2. Se o sensor viu alguém, atualiza o alvo (visão tem prioridade)
+        if (detected != null)
+        {
+            if (!isChasing) OnDetectedPlayer();
+            targetPlayer = detected;
+            isChasing = true;
+        }
+        // 3. Se o sensor NÃO viu ninguém, mas já estamos perseguindo (ex: por causa do Dano)
+        else if (isChasing && targetPlayer != null)
+        {
+            // Mantemos a perseguição ativa, a menos que o player fuja para muito longe
+            float dist = Vector3.Distance(transform.position, targetPlayer.position);
+
+            // SÓ para de perseguir se estiver longe E se já passou o tempo de memória do dano
+            bool lostDamageMemory = Time.time > lastDamageTime + memoryAfterDamage;
+
+            if (dist > stopChasingRange && lostDamageMemory)
+            {
+                isChasing = false;
+                targetPlayer = null;
+            }
+            // NOTA: Não limpamos o targetPlayer aqui se ele estiver dentro do alcance, 
+            // permitindo que o inimigo continue indo atrás de quem o deu dano.
+        }
+    }
+
+    private bool hasSlot;
+
+    private void HandleAI()
+    {
+        if (!isChasing || targetPlayer == null) return;
+
+        float distanceToTarget = Vector3.Distance(transform.position, targetPlayer.position);
+
+        // Ajusta a velocidade do movement quando estiver perseguindo
+        if (movement != null) movement.moveSpeed = chaseSpeed;
+
+        // Se estiver fora do alcance de ataque, move-se em direção ao alvo
+        if (distanceToTarget > attackRange * 0.8f)
+        {
+            bool ignoreGroundCheck = intelligenceLevel < 0.5f;
+
+            // NOVIDADE: Verifica se o slot não é zero antes de ir para lá
+            // Se o slot estiver muito próximo do player, abandonamos o slot e vamos direto ao player para atacar.
+            bool hasValidSlot = currentGroup != null && hasSlot && Vector3.Distance(GetCurrentSlot(), targetPlayer.position) > attackRange * 0.6f;
+            Vector3 destination = hasValidSlot ? GetCurrentSlot() : targetPlayer.position;
+
+            movement.MoveTowards(destination, ignoreGroundCheck);
+        }
+        else
+        {
+            // Se estiver perto, tenta atacar
+            TryAttack();
+        }
+    }
+
+    private void UpdateUI()
+    {
         if (showHealthBar && worldCanvas != null && worldCanvas.gameObject.activeSelf)
         {
             worldCanvas.transform.LookAt(worldCanvas.transform.position + Camera.main.transform.forward);
         }
-
-        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
-
-        if (isChasing)
-        {
-            HandleChasing(distanceToPlayer);
-        }
-        else
-        {
-            if (distanceToPlayer <= detectionRange)
-            {
-                isChasing = true;
-                OnDetectedPlayer(); // Trigger para rugido ou animação
-            }
-        }
-
     }
 
-    private void HandleChasing(float dist)
-    {
-        agent.SetDestination(player.position);
-        agent.speed = chaseSpeed;
-
-        if (dist <= attackRange)
-        {
-            TryAttack();
-        }
-
-        if (dist > stopChasingRange)
-        {
-            isChasing = false;
-            agent.speed = moveSpeed;
-        }
-    }
-
-    private void TryAttack()
-    {
-        if (Time.time >= lastAttackTime + attackCooldown)
-        {
-            float dist = Vector3.Distance(transform.position, player.position);
-
-            if (dist <= attackRange)
-            {
-                lastAttackTime = Time.time;
-
-                // "Trava" o zumbi no lugar por um breve momento após o bote
-                StartCoroutine(FreezeMovement(0.5f));
-
-                if (player.TryGetComponent(out IDamageable pDamage))
-                {
-                    pDamage.Damage(attackDamage);
-                    // Feedback visual do "bote"
-                    visualModel.transform.DOPunchPosition(transform.forward * 0.7f, 0.3f).SetLink(gameObject);
-                }
-            }
-        }
-    }
-
-    // Pequena rotina para impedir que ele continue empurrando freneticamente
-    IEnumerator FreezeMovement(float duration)
-    {
-        agent.isStopped = true;
-        yield return new WaitForSeconds(duration);
-        if (!isDead) agent.isStopped = false;
-    }
 
     public void Damage(float amount)
     {
         if (isDead) return;
 
         currentHealth -= amount;
-        isChasing = true; // Se tomou tiro, ele sabe onde você está!
+        lastDamageTime = Time.time;
 
-        // Feedback de dano
-        if (visualModel) visualModel.transform.DOShakePosition(0.1f, 0.1f);
+        // Ao tomar dano, ignoramos o sensor de visão e focamos no player imediatamente
+        if (!isChasing || targetPlayer == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+            {
+                targetPlayer = playerObj.transform;
+                isChasing = true;
+                OnDetectedPlayer();
+            }
+        }
+
+        if (currentGroup != null)
+        {
+            currentGroup.AlertGroup(targetPlayer);
+        }
+
+        if (visualModel)
+        {
+            visualModel.transform.DOKill(); // Para o shake anterior antes de começar um novo
+            visualModel.transform.DOShakePosition(0.1f, 0.1f);
+        }
 
         //if (bloodEffect) bloodEffect.Play();
         if (showHealthBar && worldCanvas != null && healthBar != null)
@@ -192,28 +278,17 @@ public class Enemy : MonoBehaviour, IDamageable
         if (isDead) return;
         isDead = true;
 
-        if (agent != null)
-        {
-            // 1. Para o movimento imediatamente
-            agent.isStopped = true;
-
-            // 2. DESATIVA a atualização de posição e rotação pelo NavMesh
-            // Isso impede que o agente "puxe" o inimigo de volta para cima
-            agent.updatePosition = false;
-            agent.updateRotation = false;
-
-            // 3. Opcional: Desativa o componente para garantir que não há conflitos
-            agent.enabled = false;
-        }
 
         // 4. Se tiveres um Animator, desativa-o ou ativa a trigger de morte
         // GetComponent<Animator>().enabled = false;
 
+        // Desativa movimento e colisões físicas
+        if (TryGetComponent(out Rigidbody rb)) rb.isKinematic = true;
+        if (TryGetComponent(out Collider col)) col.enabled = false;
+
         // 5. Animação de queda (Agora o NavMesh não vai interferir)
         transform.DORotate(new Vector3(-90, 0, 0), 0.5f).SetEase(Ease.OutBounce);
 
-        // 6. Remover o Collider para o player não tropeçar no cadáver
-        if (TryGetComponent(out Collider col)) col.enabled = false;
 
         TryDropLoot();
 
@@ -263,6 +338,152 @@ public class Enemy : MonoBehaviour, IDamageable
     {
         transform.DOKill();
     }
+
+    private void HandleGroupLogic()
+    {
+        if (role == SocialRole.LoneWolf || isDead) return;
+
+        int enemyLayer = LayerMask.GetMask("Enemy");
+
+        // Se eu sou líder mas ainda não tenho grupo -> crio
+        if (role == SocialRole.Leader && currentGroup == null)
+        {
+            currentGroup = new EnemyGroup();
+            currentGroup.leader = this;
+            currentGroup.members.Add(this);
+        }
+
+        if (role == SocialRole.Leader && currentGroup != null)
+        {
+            currentGroup.UpdateGroup();
+
+            Collider[] neighbors = Physics.OverlapSphere(transform.position, groupDetectionRadius, enemyLayer);
+
+            foreach (var col in neighbors)
+            {
+                Enemy other = col.GetComponentInParent<Enemy>();
+
+                if (other != null && other != this && other.currentGroup == null && other.role != SocialRole.LoneWolf)
+                {
+                    other.JoinGroup(currentGroup);
+                }
+            }
+
+            return;
+        }
+    }
+
+    public Vector3 GetCurrentSlot()
+    {
+        return currentSlotPosition;
+    }
+
+    public void SetGroupSlot(Vector3 pos)
+    {
+        currentSlotPosition = pos;
+        hasSlot = true;
+    }
+
+    public void ClearGroupSlot()
+    {
+        hasSlot = false;
+        currentSlotPosition = Vector3.zero;
+    }
+
+    private void CreateGroup(Enemy other)
+    {
+        currentGroup = new EnemyGroup();
+        currentGroup.leader = this; // Define quem manda
+        this.role = SocialRole.Leader; // Garante o cargo
+
+        currentGroup.members.Add(this);
+        other.JoinGroup(currentGroup);
+
+        Debug.Log($"<color=cyan>{name} criou um novo grupo e recrutou {other.name}!</color>");
+    }
+
+    public void JoinGroup(EnemyGroup group)
+    {
+        currentGroup = group;
+        if (!currentGroup.members.Contains(this)) currentGroup.members.Add(this);
+
+        Debug.Log($"{gameObject.name} <color=green>entrou</color> no grupo do líder {group.leader.name}");
+    }
+
+    public void LeaveGroup()
+    {
+        currentGroup?.members.Remove(this);
+        currentGroup = null;
+
+        Debug.Log($"{gameObject.name} <color=redn>entrou</color> saiu do grupo");
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying || isDead) return;
+
+        // 1. Desenha uma linha até o líder se estiver em grupo
+        if (currentGroup != null && currentGroup.leader != null)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawLine(transform.position, currentGroup.leader.transform.position);
+
+            // 2. Desenha uma esfera onde o "Slot" (vaga) do inimigo está
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(currentSlotPosition, 0.3f);
+            Gizmos.DrawLine(transform.position, currentSlotPosition);
+        }
+
+        // 3. Diferencia o Líder visualmente no Editor
+        if (role == SocialRole.Leader)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(transform.position + Vector3.up * 2f, 0.5f);
+        }
+        // 4. Diferencia o Lobo Solitário
+        else if (role == SocialRole.LoneWolf)
+        {
+            Gizmos.color = Color.black;
+            Gizmos.DrawWireCube(transform.position + Vector3.up * 2f, Vector3.one * 0.5f);
+        }
+    }
+
+    [ContextMenu("Forçar Criação de Grupo")]
+    public void ForceCreateGroup()
+    {
+        if (isDead) return;
+
+        // 1. Reset total deste líder
+        if (currentGroup != null) LeaveGroup();
+
+        this.role = SocialRole.Leader;
+        currentGroup = new EnemyGroup();
+        currentGroup.leader = this;
+        currentGroup.members.Add(this);
+
+        // 2. Busca vizinhos em um raio maior (ex: 15) para garantir que pegue alguém
+        int enemyLayer = LayerMask.GetMask("Enemy");
+        Collider[] neighbors = Physics.OverlapSphere(transform.position, 15f, enemyLayer);
+
+        int recrutasCount = 0;
+        foreach (var col in neighbors)
+        {
+            // O segredo está aqui: busca o script no objeto ou em qualquer pai dele
+            Enemy other = col.GetComponentInParent<Enemy>();
+
+            if (other != null && other != this)
+            {
+                other.LeaveGroup();
+                other.JoinGroup(this.currentGroup);
+                recrutasCount++;
+            }
+        }
+
+        Debug.Log($"<color=cyan><b>{name}</b></color> sequestrou {recrutasCount} recrutas para seu novo grupo!");
+    }
+
+
+
 }
 
 [System.Serializable]

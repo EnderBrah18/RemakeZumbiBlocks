@@ -78,12 +78,18 @@ public class WaveManager : MonoBehaviour
 
     void CallRandomSpawner()
     {
-        // Escolhe um spawner aleatório da lista
         int randomIndex = Random.Range(0, allSpawners.Length);
-        allSpawners[randomIndex].SpawnSingleEnemy();
+        // Captura o retorno do spawner
+        GameObject newEnemy = allSpawners[randomIndex].SpawnSingleEnemy();
 
-        currentEnemiesAlive++; // Incrementa o contador de inimigos vivos
-        enemiesSpawnedInThisWave++; // Aqui está o seu limite!
+        if (newEnemy.TryGetComponent(out Enemy e))
+        {
+            // 70% chance de ser inteligente (1f), 30% chance de ser "burro" (0.1f)
+            e.intelligenceLevel = Random.value > 0.3f ? 0.5f : 0.1f;
+        }
+
+        currentEnemiesAlive++;
+        enemiesSpawnedInThisWave++;
     }
 
     void NextWave()

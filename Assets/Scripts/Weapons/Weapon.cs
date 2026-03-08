@@ -135,34 +135,39 @@ public class Weapon : MonoBehaviour
 
     void HitscanShot()
     {
+        // Cria uma máscara que ignora a Layer "Player"
+        // Isso assume que seu Player está na layer 3 (ou use o nome da layer)
+        int layerMask = ~LayerMask.GetMask("Player");
+
+        // Opcional: Se quiser ser ainda mais específico, atire apenas contra Inimigos e Cenário (Default)
+        // int layerMask = LayerMask.GetMask("Enemy", "Default", "Obstacle");
+
         Ray ray = new Ray(head.position, head.forward);
 
-        Debug.DrawRay(head.position, head.forward * weaponData.range, Color.red, 1f);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, weaponData.range))
+        // Adicionamos a layerMask no final do Raycast
+        if (Physics.Raycast(ray, out RaycastHit hit, weaponData.range, layerMask))
         {
-            Debug.Log("Atingiu: " + hit.collider.name);
-
-            // 1. Tenta encontrar o script Enemy no objeto atingido
+            // 1. Tenta encontrar o script Enemy
             Enemy enemy = hit.collider.GetComponentInParent<Enemy>();
-
-
 
             if (enemy != null)
             {
-                // 2. Se o inimigo tiver o efeito, posiciona e rotaciona
                 if (enemy.bloodEffect != null)
                 {
                     enemy.bloodEffect.transform.position = hit.point;
-                    // A 'normal' faz o sangue espirrar para longe da superfície atingida
                     enemy.bloodEffect.transform.forward = hit.normal;
                     enemy.bloodEffect.Play();
                 }
             }
 
-            // 3. Aplica o dano normalmente
+            // 2. Aplica o dano
             float finalDamage = CalculateDamage(hit);
-            ApplyDamage(hit.collider, finalDamage);
+
+            // SEGURANÇA EXTRA: Só aplica dano se NÃO for o player (mesmo com a máscara)
+            if (!hit.collider.CompareTag("Player"))
+            {
+                ApplyDamage(hit.collider, finalDamage);
+            }
         }
     }
 
