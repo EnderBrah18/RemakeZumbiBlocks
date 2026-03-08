@@ -16,8 +16,8 @@ public class EnemyMovement : MonoBehaviour
     public float detectionRadius = 1.2f;
 
     [Header("Social AI")]
-    public float separationRadius = 2.0f;
-    public float separationWeight = 1.5f;
+    public float separationRadius = 1.8f;
+    public float separationWeight = 2.5f; 
     public float separationSmooth = 10f;
 
     private void Awake()
@@ -41,22 +41,18 @@ public class EnemyMovement : MonoBehaviour
         bool isGrounded = sensors.IsGrounded();
         float heightDiff = transform.position.y - targetPosition.y;
 
-        // --- NOVIDADE: SE JOGAR DA BORDA ---
-        // Se ele não tem chão mas o player está abaixo, ou se ele já está no ar,
-        // ele NÃO deve congelar, deve manter a velocidade para frente.
+        // 1. COMPORTAMENTO EM VOO
         if (!isGrounded)
         {
-            // Mantém a velocidade horizontal atual (inércia) para ele cair descrevendo um arco
             Vector3 airVel = rb.linearVelocity;
-            airVel.y = rb.linearVelocity.y; // Mantém gravidade
+            airVel.y = rb.linearVelocity.y;
             rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, airVel, Time.fixedDeltaTime);
             return;
         }
 
-        // Se o player está abaixo, ele ignora a cautela com a borda
         bool shouldLeap = heightDiff > 1.5f;
+        Vector3 chosenDir = Vector3.zero;
 
-        Vector3 chosenDir;
         if (shouldLeap || ignoreGroundCheck)
         {
             chosenDir = (targetPosition - transform.position).normalized;
@@ -65,30 +61,35 @@ public class EnemyMovement : MonoBehaviour
         else
         {
             Vector3 targetPos = targetPosition;
+            // Se estiver em grupo, tenta ir para o slot, mas com uma "folga"
             if (self.role != SocialRole.LoneWolf && self.currentGroup != null)
             {
                 Vector3 slot = self.GetCurrentSlot();
-                if (Vector3.Distance(transform.position, slot) > 1.2f) targetPos = slot;
+                // Só foca no slot se estiver longe dele, senão foca no player para evitar micro-ajustes
+                if (Vector3.Distance(transform.position, slot) > 0.8f) targetPos = slot;
             }
 
             chosenDir = CalculateBestDirection(targetPos);
-
-            // Só aplica a repulsão se não estiver tentando pular
             chosenDir = ApplyEdgeRepulsion(chosenDir);
         }
 
-        // Se ele está tentando ir para o player mas o sensor diz que é abismo
-        // e ele DEVE pular, forçamos a direção mesmo sem chão.
-        if (chosenDir == Vector3.zero && shouldLeap)
+        // 2. LÓGICA SOCIAL MELHORADA
+        Vector3 separation = CalculateSeparation();
+        Vector3 finalDir = chosenDir;
+
+        if (separation != Vector3.zero)
         {
-            chosenDir = (targetPosition - transform.position).normalized;
-            chosenDir.y = 0;
+            // Combinamos a direção desejada com a separação ANTES de normalizar
+            // Isso dá peso real à fuga de outros inimigos
+            Vector3 combined = (chosenDir + separation * separationWeight).normalized;
+
+            // Veto de segurança: Não se empurrem para o abismo
+            if (sensors.HasGroundAhead(combined))
+                finalDir = combined;
+            else
+                finalDir = chosenDir;
         }
 
-        Vector3 separation = CalculateSeparation();
-        Vector3 finalDir = (chosenDir + separation * separationWeight).normalized;
-
-        // Se mesmo após tudo ele não tem direção e não deve pular, aí sim ele para
         if (chosenDir == Vector3.zero && !shouldLeap) finalDir = Vector3.zero;
 
         ApplyMovement(finalDir, targetPosition, shouldLeap);
@@ -183,15 +184,27 @@ public class EnemyMovement : MonoBehaviour
     private Vector3 CalculateSeparation()
     {
         Vector3 separation = Vector3.zero;
-        Collider[] colleagues = Physics.OverlapSphere(transform.position, separationRadius, LayerMask.GetMask("Enemy"));
+        // LayerMask para otimização
+        int enemyLayer = LayerMask.GetMask("Enemy");
+        Collider[] colleagues = Physics.OverlapSphere(transform.position, separationRadius, enemyLayer);
+
         foreach (var col in colleagues)
         {
             if (col.gameObject == gameObject) continue;
+
             Vector3 diff = transform.position - col.transform.position;
             float dist = diff.magnitude;
-            if (dist < 0.1f) continue;
-            separation += diff.normalized * ((separationRadius - dist) / separationRadius);
+
+            if (dist < 0.05f) continue;
+
+            // Curva de força: Quase zero na borda do raio, máxima no contato
+            // (1 - (dist/radius))^2 cria uma curva suave que evita trepidação
+            float strength = Mathf.Clamp01(1.0f - (dist / separationRadius));
+            strength = strength * strength;
+
+            separation += diff.normalized * strength;
         }
-        return separation;
+
+        return Vector3.ClampMagnitude(separation, 1.0f);
     }
 }
