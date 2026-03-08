@@ -34,7 +34,7 @@ public class EnemyMovement : MonoBehaviour
         if (p != null) targetPlayer = p.transform;
     }
 
-    public void MoveTowards(Vector3 targetPosition, bool ignoreGroundCheck = false)
+    public void MoveTowards(Vector3 targetPosition, bool ignoreGroundCheck = false, bool forceDirect = false)
     {
         if (rb == null) return;
 
@@ -70,6 +70,24 @@ public class EnemyMovement : MonoBehaviour
             }
 
             chosenDir = CalculateBestDirection(targetPos);
+            chosenDir = ApplyEdgeRepulsion(chosenDir);
+        }
+
+
+        // Se for agressivo (forceDirect) ou estiver pulando, ele ignora o CalculateBestDirection
+        if (shouldLeap || ignoreGroundCheck || forceDirect)
+        {
+            chosenDir = (targetPosition - transform.position).normalized;
+            chosenDir.y = 0;
+
+            // Se ele não for burro (ignoreGroundCheck), ainda aplicamos a repulsão de borda 
+            // apenas para ele não cair "sem querer", mas ele não vai mais "flanquear"
+            if (!ignoreGroundCheck) chosenDir = ApplyEdgeRepulsion(chosenDir);
+        }
+        else
+        {
+            // Aqui é onde os táticos calculam o melhor caminho (causando o flanqueio)
+            chosenDir = CalculateBestDirection(targetPosition);
             chosenDir = ApplyEdgeRepulsion(chosenDir);
         }
 
@@ -161,17 +179,29 @@ public class EnemyMovement : MonoBehaviour
     {
         float targetSpeed = (moveDir == Vector3.zero) ? 0 : moveSpeed * self.speedMultiplier;
 
-        // Se for pular, dá um pequeno bônus de velocidade para garantir que saia da quina
+        // Se estiver muito perto do player, reduz a velocidade para não "atropelar" e tremer
+        float distToPlayer = Vector3.Distance(transform.position, targetPlayer.position);
+        if (distToPlayer < self.attackRange * 0.8f && !leaping) targetSpeed *= 0.5f;
+
         if (leaping) targetSpeed *= 1.2f;
 
         Vector3 targetVel = moveDir * targetSpeed;
         targetVel.y = rb.linearVelocity.y;
 
-        // Se estiver pulando, a resposta é imediata para não "escorregar" e parar
+        // Reduzimos o Smooth se estiverem muito perto uns dos outros para evitar o efeito "mola"
         float smooth = leaping ? 20f : separationSmooth;
-        rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, targetVel, smooth * Time.fixedDeltaTime);
 
-        // Rotação estável
+        // Se a velocidade for muito baixa, zeramos para evitar micro-movimentos (tremidas)
+        if (targetVel.sqrMagnitude < 0.01f)
+        {
+            rb.linearVelocity = new Vector3(0, rb.linearVelocity.y, 0);
+        }
+        else
+        {
+            rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, targetVel, smooth * Time.fixedDeltaTime);
+        }
+
+        // Rotação: Sempre focar no player ao atacar, mesmo parado
         Vector3 lookDir = (targetPlayer.position - transform.position);
         lookDir.y = 0;
         if (lookDir.sqrMagnitude > 0.01f)

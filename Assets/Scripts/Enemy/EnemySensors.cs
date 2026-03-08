@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class EnemySensors : MonoBehaviour
@@ -35,6 +36,28 @@ public class EnemySensors : MonoBehaviour
             }
         }
         return null;
+    }
+
+    public List<Transform> GetAllVisibleTargets()
+    {
+        List<Transform> found = new List<Transform>();
+        Collider[] targetsInRadius = Physics.OverlapSphere(transform.position, viewDistance, targetMask);
+
+        foreach (var col in targetsInRadius)
+        {
+            Vector3 dirToTarget = (col.transform.position - transform.position).normalized;
+            float distToTarget = Vector3.Distance(transform.position, col.transform.position);
+
+            // Verifica FOV e se há paredes
+            if (Vector3.Angle(transform.forward, dirToTarget) < viewAngle / 2)
+            {
+                if (!Physics.Raycast(transform.position + Vector3.up, dirToTarget, distToTarget, obstacleMask))
+                {
+                    found.Add(col.transform);
+                }
+            }
+        }
+        return found;
     }
 
     // Verifica se há chão à frente para decidir se deve "dropar" ou parar
