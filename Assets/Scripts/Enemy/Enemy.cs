@@ -1,4 +1,4 @@
-using DG.Tweening;
+Ôªøusing DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,9 +13,9 @@ public enum EnemyFightType
 
 public enum SocialRole
 {
-    Leader,     // O cÈrebro do grupo
-    Soldier,    // Segue as ordens do lÌder e preenche slots
-    LoneWolf    // Ignora o grupo, usa a lÛgica de avoidance antiga
+    Leader,     // O c√©rebro do grupo
+    Soldier,    // Segue as ordens do l√≠der e preenche slots
+    LoneWolf    // Ignora o grupo, usa a l√≥gica de avoidance antiga
 }
 
 public enum SocialBehavior
@@ -27,18 +27,21 @@ public enum SocialBehavior
 
 public enum GroupPersonality
 {
-    Aggressive,  // Vai direto para o player, n„o se importa com slots
-    Defensive,   // Tenta manter dist‚ncia e usar o ambiente a seu favor
-    Supportive   // Prioriza ficar perto do lÌder e ajudar os outros membros
+    Aggressive,
+    Tactical
 }
 public enum EnemyFocus
 {
     PlayerSlayer,   // Foco total no Jogador
-    Bystander,      // Neutro, sÛ ataca se for provocado (Player ou NPCs)
     Hunter,         // Foca em NPCs e defesas antes do objetivo
     Guardian,       // Foca em destruir as defesas (Torres/Barricadas)
     ObjectiveRooted // Ignora tudo e corre para o ponto central
 }
+
+public enum EnemyPersonality { Disciplined, Loyal, Wild, Berserker }
+public enum GroupIntent { Idle, MarchToCore, AttackPlayer, AttackObjective, DefendArea }
+
+public enum EnemyState { Idle, Combat, Regroup, Marching }
 
 public enum EnemySizeType
 {
@@ -50,13 +53,11 @@ public enum EnemySizeType
 
 public class Enemy : MonoBehaviour, IDamageable
 {
-    public ScoreSO scoreData; // ReferÍncia ao ScriptableObject para atualizar a pontuaÁ„o
+    public ScoreSO scoreData; // Refer√™ncia ao ScriptableObject para atualizar a pontua√ß√£o
 
     [Header("Stats")]
     public float maxHealth = 100;
     public float currentHealth;
-    public float moveSpeed = 3.5f;
-    public float chaseSpeed = 5.5f; // Mais r·pido quando persegue
 
     [HideInInspector]
     public float speedMultiplier = 1f;
@@ -68,9 +69,8 @@ public class Enemy : MonoBehaviour, IDamageable
     private float lastAttackTime;
 
     [Header("Detection")]
-    public float stopChasingRange = 15f; // Para n„o seguir o player pra sempre
+    public float stopChasingRange = 15f; // Para n√£o seguir o player pra sempre
     public bool isChasing = false;
-    public Transform targetPlayer;
 
     private float lastDamageTime;
     public float memoryAfterDamage = 5f;
@@ -79,10 +79,10 @@ public class Enemy : MonoBehaviour, IDamageable
     public GameObject visualModel;
     public ParticleSystem bloodEffect; // Feedback visual de tiro
     public GameObject bloodPrefab; // Arraste o ARQUIVO do prefab aqui
-    private ParticleSystem bloodInstance; // Esta ser· a cÛpia na cena
+    private ParticleSystem bloodInstance; // Esta ser√° a c√≥pia na cena
 
     [Header("UI de Vida")]
-    public bool showHealthBar = true; // Define se este inimigo ter· barra de vida
+    public bool showHealthBar = true; // Define se este inimigo ter√° barra de vida
     public Canvas worldCanvas;
     public UnityEngine.UI.Image healthBar;
     private Transform player;
@@ -90,7 +90,7 @@ public class Enemy : MonoBehaviour, IDamageable
 
     [Header("Loot System")]
     [Range(0, 100)] public float generalDropChance = 50f; // Chance global de dropar ALGO (0 a 100)
-    public List<LootDrop> possibleDrops; // Lista expansÌvel de prefabs (Caixa Rifle, Caixa Pistola, etc)
+    public List<LootDrop> possibleDrops; // Lista expans√≠vel de prefabs (Caixa Rifle, Caixa Pistola, etc)
 
     [Header("AI Intelligence")]
     [Range(0, 1)] public float intelligenceLevel = 0.5f;
@@ -105,28 +105,40 @@ public class Enemy : MonoBehaviour, IDamageable
     [Header("Social Settings")]
     public SocialRole role;
     public SocialBehavior socialBehavior;
+    public EnemyPersonality personality;
+    public float groupLeashDistance = 25f;
+    public bool isDeserter = false;
 
     [System.NonSerialized]
     public EnemyGroup currentGroup;
 
     [Header("Final State AI")]
     public EnemyFocus focus; // O que este inimigo prioriza
-    public float viewDistance = 15f; // Dist‚ncia de busca (sincronizar com Sensors)
+    public float viewDistance = 15f; // Dist√¢ncia de busca (sincronizar com Sensors)
     public LayerMask targetMask; // Layer do Player, NPCs e Objetivos
 
     [Header("AI Context")]
-    public Transform navigationTarget; // Onde o lÌder quer chegar (ex: Objetivo)
+    public Transform navigationTarget; // Onde o l√≠der quer chegar (ex: Objetivo)
     public Transform combatTarget;     // Quem eu estou tentando bater agora (ex: Player/NPC)
+    private Vector3 targetDestination;
+    public EnemyState state;
+    [Header("Aggro Override")]
+    public float aggroOverrideDistance = 4f;
+    float forcedAggroTimer = 0f;
+
+    private float targetLostTimer;
+    public float targetForgetThreshold = 5f;
 
     private void Awake()
     {
         sensors = GetComponent<EnemySensors>();
         movement = GetComponent<EnemyMovement>();
+        navigationTarget = GameObject.FindGameObjectWithTag("Objective")?.transform;
     }
 
     private void Start()
     {
-        Debug.Log($"{name} iniciou com role = {role} e group = {currentGroup}");
+        player = GameObject.FindGameObjectWithTag("Player")?.transform;
 
         currentHealth = maxHealth;
         if (worldCanvas != null)
@@ -140,84 +152,103 @@ public class Enemy : MonoBehaviour, IDamageable
             bloodInstance = go.GetComponent<ParticleSystem>();
             bloodEffect = bloodInstance;
 
-            // Opcional: Garante que a partÌcula comeÁa desligada
+            // Opcional: Garante que a part√≠cula come√ßa desligada
             bloodEffect.Stop();
         }
 
        float roll = Random.value;
-       if (roll < 0.1f) role = SocialRole.Leader; // 10% de chance de ser lÌder nato
-       else if (roll < 0.2f) role = SocialRole.LoneWolf; // 10% de lobo solit·rio
-       else role = SocialRole.Soldier;
+      // if (roll < 0.1f) role = SocialRole.Leader; // 10% de chance de ser l√≠der nato
+      // else if (roll < 0.2f) role = SocialRole.LoneWolf; // 10% de lobo solit√°rio
+      // else role = SocialRole.Soldier;
 
         if (role == SocialRole.Leader && currentGroup == null)
         {
             currentGroup = new EnemyGroup(this);
             currentGroup.leader = this;
             currentGroup.members.Add(this);
-            Debug.Log($"<color=orange>{name} nasceu como LÌder e inicializou seu prÛprio grupo.</color>");
         }
 
-        // Exemplo: 20% de chance de ser focado no Objetivo
-        if (Random.value < 0.2f) focus = EnemyFocus.ObjectiveRooted;
-        else focus = EnemyFocus.PlayerSlayer;
+         //Exemplo: 20% de chance de ser focado no Objetivo
+       //if (Random.value < 0.2f) focus = EnemyFocus.ObjectiveRooted;
+       // else focus = EnemyFocus.PlayerSlayer;
 
         speedMultiplier = Random.Range(0.9f, 1.2f);
+
+        EnemyManager.Instance.RegisterEnemy(this);
     }
+
 
     private void Update()
     {
         if (isDead) return;
 
-        HandleGroupLogic();
+        movement.MoveTowards(targetDestination, intelligenceLevel < 0.5f, currentGroup?.personality == GroupPersonality.Aggressive);
 
-        HandleAI();
-        HandleDetection();
         UpdateUI();
+        
+    }
 
-        if (isChasing && targetPlayer != null)
+    [Header("Tick Timing")]
+    float nextDetection;
+    float detectionInterval = 0.3f;
+
+    public void TickAI()
+    {
+
+        if (isDead) return;
+
+        UpdateTargetAwareness();
+        DetermineNavigationGoal();
+
+        if (Time.time >= nextDetection)
         {
-            float dist = Vector3.Distance(transform.position, targetPlayer.position);
-            if (dist < attackRange * 0.8f) // Se est· "esfregando" no player
-            {
-                TryAttack();
-            }
+            HandleDetection();
+            nextDetection = Time.time + detectionInterval;
         }
 
+        // Se n√£o houver um alvo priorit√°rio de combate, EvaluateTarget decide o que fazer
+        EvaluateTarget();
+
+        UpdateDecision(); // Define o targetDestination final
+        CheckGroupCohesion(); // Verifica se desertou ou precisa de Regroup
+        HandleGroupLogic();
     }
+
     private void TryAttack()
     {
-        if (targetPlayer == null || isDead) return;
+        
+        if (combatTarget == null || isDead) return;
 
-        float currentDist = Vector3.Distance(transform.position, targetPlayer.position);
-
-        // 1. Aumentamos a toler‚ncia da dist‚ncia para 1.5f para compensar colisores largos
-        if (Time.time >= lastAttackTime + attackCooldown && currentDist <= attackRange * 1.5f)
+        // Em vez de centro-a-centro, calculamos a dist√¢ncia at√© o ponto mais pr√≥ximo da superf√≠cie do alvo
+        float dist;
+        if (combatTarget.TryGetComponent(out Collider targetCol))
         {
-            // 2. BUSCA INTELIGENTE: Procura o IDamageable no objeto, nos pais ou nos filhos
-            // GetComponentInParent È o mais seguro se o colisor for a cabeÁa e o script estiver no corpo
-            IDamageable pDamage = targetPlayer.GetComponentInParent<IDamageable>();
+            Vector3 closestPoint = targetCol.ClosestPoint(transform.position);
+            dist = Vector3.Distance(transform.position, closestPoint);
+        }
+        else
+        {
+            dist = Vector3.Distance(transform.position, combatTarget.position);
+        }
 
-            if (pDamage != null)
+        // Agora 1.5f ou 2.0f ser√° muito mais preciso
+        if (Time.time >= lastAttackTime + attackCooldown && dist <= attackRange * 1.5f)
+        {
+            IDamageable damageable = combatTarget.GetComponentInParent<IDamageable>();
+            if (damageable != null)
             {
+
                 lastAttackTime = Time.time;
-                pDamage.Damage(attackDamage);
+                damageable.Damage(attackDamage);
 
                 if (visualModel)
                     visualModel.transform.DOPunchPosition(transform.forward * 0.5f, 0.2f);
-
-                Debug.Log($"<color=red>Dano causado em:</color> {targetPlayer.name} (ou seu pai)");
             }
             else
             {
-                // Debug para vocÍ saber se ainda est· errando o alvo
-                Debug.LogWarning($"Inimigo tentou bater em {targetPlayer.name}, mas n„o achou IDamageable!");
+                Debug.Log("Nenhum IDamageable encontrado em " + combatTarget.name);
             }
         }
-    }
-
-    void OnCollisionEnter(Collision collision)
-    {
-        Debug.Log("Colidiu com: " + collision.gameObject.name);
     }
 
     private void OnCollisionStay(Collision collision)
@@ -225,17 +256,32 @@ public class Enemy : MonoBehaviour, IDamageable
         if (isDead) return;
 
         // Se encostar em algo que seja o player, tenta bater imediatamente
-        if (collision.gameObject.CompareTag("Player"))
+        if (combatTarget)
         {
             TryAttack();
-            Debug.Log("Ainda colidindo com: " + collision.gameObject.name);
         }
     }
     private void HandleDetection()
     {
         if (isDead) return;
 
-        // 1. O Sensor agora retorna uma LISTA de tudo que ele vÍ (Player, NPCs, Objetivos)
+        // MEM√ìRIA DE PERSEGUI√á√ÉO
+        if (combatTarget != null)
+        {
+            float dist = Vector3.Distance(transform.position, combatTarget.position);
+
+            if (dist <= stopChasingRange)
+            {
+                // continua perseguindo MAS ainda pode trocar por alvo melhor
+            }
+            else
+            {
+                combatTarget = null;
+                isChasing = false;
+            }
+        }
+
+        // 1. O Sensor agora retorna uma LISTA de tudo que ele v√™ (Player, NPCs, Objetivos)
         List<Transform> visibleTargets = sensors.GetAllVisibleTargets();
 
         Transform bestTarget = null;
@@ -243,7 +289,11 @@ public class Enemy : MonoBehaviour, IDamageable
 
         foreach (Transform t in visibleTargets)
         {
+            if (ShouldIgnoreTarget(t))
+                continue;
+
             float score = CalculatePriority(t);
+
             if (score > highestScore)
             {
                 highestScore = score;
@@ -251,58 +301,182 @@ public class Enemy : MonoBehaviour, IDamageable
             }
         }
 
-        // 2. Se achou um alvo melhor do que o atual (ou se n„o tinha nenhum)
         if (bestTarget != null)
         {
-            if (targetPlayer == null || targetPlayer != bestTarget)
+            float newScore = CalculatePriority(bestTarget);
+
+            if (combatTarget == null || newScore > CalculatePriority(combatTarget))
             {
-                targetPlayer = bestTarget;
+                bool targetChanged = combatTarget != bestTarget;
+
+                combatTarget = bestTarget;
                 isChasing = true;
-                // Se for lÌder, avisa o grupo do novo foco estratÈgico
-                currentGroup?.AlertGroup(targetPlayer);
+
+                if (targetChanged && currentGroup != null)
+                {
+                    currentGroup.AlertGroup(combatTarget);
+                }
             }
         }
     }
 
-
-    private void HandleAI()
+    void EvaluateTarget()
     {
-        if (isDead) return;
+        if (forcedAggroTimer > 0)
+        {
+            forcedAggroTimer -= EnemyManager.Instance.tickInterval;
+            return;
+        }
 
-        // 1. ATUALIZA QUEM EU DEVO ATACAR (Baseado na minha personalidade)
-        combatTarget = FindBestTarget(); // Usa aquele sistema de score/prioridade
+        Transform potentialTarget = null;
 
-        // 2. DEFINE O DESTINO DE MOVIMENTO
-        Vector3 destination;
-
+        // 1Ô∏è & 2Ô∏è Foco Pessoal / Alvo Atual (Se ainda v√°lido e perto)
         if (combatTarget != null)
         {
-            // Se tenho alguÈm para bater, meu destino È o meu alvo de combate
-            destination = combatTarget.position;
+            float currentScore = CalculatePriority(combatTarget);
+            Transform best = FindBestTarget();
+
+            if (best != null)
+            {
+                float newScore = CalculatePriority(best);
+
+                if (newScore > currentScore + 50f)
+                {
+                    combatTarget = best;
+                }
+            }
+
+            return;
+        }
+
+        // 3Ô∏è Inten√ß√£o do L√≠der (Se eu n√£o estiver "ocupado")
+        if (currentGroup != null && currentGroup.leader != null)
+        {
+            GroupIntent intent = currentGroup.currentIntent;
+
+            // Se a inten√ß√£o do grupo for atacar o Player e eu estiver livre
+            if (intent == GroupIntent.AttackPlayer)
+            {
+                potentialTarget = currentGroup.leader.combatTarget;
+            }
+        }
+
+        // 4Ô∏è Informa√ß√£o Ouvida (Sensores)
+        if (potentialTarget == null)
+        {
+            potentialTarget = FindBestTarget();
+        }
+
+        // 5Ô∏è NavigationTarget (Core/Marching)
+        if (potentialTarget == null)
+        {
+            // L√≥gica de marchar para o objetivo (Ignora player se longe do core)
+            DetermineNavigationGoal();
+        }
+
+        combatTarget = potentialTarget;
+    }
+
+    private void UpdateDecision()
+    {
+        // Apenas decidimos o Vector3 targetDestination aqui
+        if (combatTarget != null)
+        {
+            IDamageable attackable = combatTarget.GetComponentInParent<IDamageable>();
+            if (attackable != null)
+            {
+                Transform atkPoint = attackable.GetAttackPoint();
+                targetDestination = atkPoint != null ? atkPoint.position : combatTarget.position;
+            }
             isChasing = true;
         }
         else if (role == SocialRole.Soldier && currentGroup != null)
         {
-            // Se n„o tenho ninguÈm para bater, sigo o Slot do grupo (que vai para o objetivo do LÌder)
-            destination = GetCurrentSlot();
-            isChasing = true;
+            // ObjetiveRooted ou Guardian ignoram slots de grupo
+            if (focus != EnemyFocus.ObjectiveRooted && focus != EnemyFocus.Guardian)
+            {
+                targetDestination = GetCurrentSlot();
+                isChasing = true;
+            }
+            else
+            {
+                // Segue o pr√≥prio objetivo
+                targetDestination = navigationTarget != null ? navigationTarget.position : transform.position;
+                isChasing = true;
+            }
         }
         else
         {
-            // Se sou lÌder ou LoneWolf sem alvo, vou para o objetivo global
-            destination = navigationTarget != null ? navigationTarget.position : transform.position;
+            targetDestination = navigationTarget != null ? navigationTarget.position : transform.position;
         }
 
-        // 3. EXECUTA O MOVIMENTO
-        float distToCombat = combatTarget != null ? Vector3.Distance(transform.position, combatTarget.position) : 999f;
-
-        // Lei da Oportunidade: Ataca se houver alvo de combate perto
-        if (distToCombat <= attackRange * 1.2f)
+        // Checagem de ataque tamb√©m pode ficar no Tick ou em um timer separado
+        float distToTarget = Vector3.Distance(transform.position, targetDestination);
+        if (combatTarget != null && distToTarget <= attackRange * 1.2f)
         {
             TryAttack();
         }
+    }
 
-        movement.MoveTowards(destination, intelligenceLevel < 0.5f, currentGroup?.personality == GroupPersonality.Aggressive);
+    void CheckGroupCohesion()
+    {
+        // Inimigos ObjectiveRooted nunca abandonam o objetivo nem se tornam desertores
+        if (focus == EnemyFocus.ObjectiveRooted) return;
+
+        if (currentGroup == null || currentGroup.leader == null || isDead) return;
+
+        float distToLeader = Vector3.Distance(transform.position, currentGroup.leader.transform.position);
+
+        // Se ultrapassou o limite, vira Desertor
+        if (distToLeader > groupLeashDistance && combatTarget == null)
+        {
+            BecomeDeserter();
+        }
+
+        // L√≥gica de Regroup baseada em Personalidade
+        if (isDeserter && personality == EnemyPersonality.Disciplined)
+        {
+            // Disciplinados tentam voltar se estiverem longe demais
+            if (distToLeader > groupLeashDistance * 1.5f)
+            {
+                state = EnemyState.Regroup;
+
+                // Apenas volta para o slot se n√£o for ObjectiveRooted
+                if (focus != EnemyFocus.ObjectiveRooted)
+                    MoveToFormationSlot();
+            }
+        }
+    }
+
+    void BecomeDeserter()
+    {
+        isDeserter = true;
+        // Opcional: Feedback visual ou log
+    }
+
+    void DetermineNavigationGoal()
+    {
+        float distToCore = Vector3.Distance(transform.position, navigationTarget.position);
+
+        // Se estiver muito longe do Core (ex: acabou de dar spawn)
+        if (distToCore > 50f)
+        {
+            // For√ßa a marcha, ignorando distra√ß√µes menores
+            targetDestination = navigationTarget.position;
+            sensors.sensorInterval = 1.0f; // Diminui a frequ√™ncia de busca por players
+        }
+        else
+        {
+            sensors.sensorInterval = 0.2f; // Perto do core, fica alerta
+        }
+    }
+
+    void MoveToFormationSlot()
+    {
+        if (currentGroup != null)
+        {
+            targetDestination = GetCurrentSlot();
+        }
     }
 
     private void UpdateUI()
@@ -321,26 +495,22 @@ public class Enemy : MonoBehaviour, IDamageable
         currentHealth -= amount;
         lastDamageTime = Time.time;
 
-        // Ao tomar dano, ignoramos o sensor de vis„o e focamos no player imediatamente
-        if (!isChasing || targetPlayer == null)
+        if (player != null && focus != EnemyFocus.ObjectiveRooted)
         {
-            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-            if (playerObj != null)
-            {
-                targetPlayer = playerObj.transform;
-                isChasing = true;
-                OnDetectedPlayer();
-            }
+            combatTarget = player;
+            isChasing = true;
+            forcedAggroTimer = 3f; // 3 segundos de foco for√ßado
+            OnDetectedPlayer();
         }
 
-        if (currentGroup != null)
+        if (currentGroup != null && combatTarget != null)
         {
-            currentGroup.AlertGroup(targetPlayer);
+            currentGroup.AlertGroup(combatTarget);
         }
 
         if (visualModel)
         {
-            visualModel.transform.DOKill(); // Para o shake anterior antes de comeÁar um novo
+            visualModel.transform.DOKill(); // Para o shake anterior antes de come√ßar um novo
             visualModel.transform.DOShakePosition(0.1f, 0.1f);
         }
 
@@ -364,26 +534,27 @@ public class Enemy : MonoBehaviour, IDamageable
 
         if (role == SocialRole.Leader && currentGroup != null)
         {
-            // Remove o lÌder da lista imediatamente para o prÛximo da fila assumir
+            // Remove o l√≠der da lista imediatamente para o pr√≥ximo da fila assumir
             currentGroup.members.Remove(this);
             currentGroup.TransferLeadership();
         }
 
-        // Desativa movimento e colisıes fÌsicas
+        // Desativa movimento e colis√µes f√≠sicas
         if (TryGetComponent(out Rigidbody rb)) rb.isKinematic = true;
         if (TryGetComponent(out Collider col)) col.enabled = false;
 
-        // 5. AnimaÁ„o de queda (Agora o NavMesh n„o vai interferir)
+        // 5. Anima√ß√£o de queda (Agora o NavMesh n√£o vai interferir)
         transform.DORotate(new Vector3(-90, 0, 0), 0.5f).SetEase(Ease.OutBounce);
 
 
         TryDropLoot();
 
+        EnemyManager.Instance.UnregisterEnemy(this);
         Destroy(gameObject, 3f);
         WaveManager.Instance.currentEnemiesAlive--; // Decrementa o contador de inimigos vivos na WaveManager
-        scoreData.currentScore++; // Incrementa a pontuaÁ„o do jogador
+        scoreData.currentScore++; // Incrementa a pontua√ß√£o do jogador
 
-        Debug.Log($"{gameObject.name} morreu! Enemies alive: {WaveManager.Instance.currentEnemiesAlive}");
+
     }
     private void TryDropLoot()
     {
@@ -393,14 +564,14 @@ public class Enemy : MonoBehaviour, IDamageable
 
         if (possibleDrops == null || possibleDrops.Count == 0) return;
 
-        // 2. Escolhe um item aleatÛrio da lista
-        // VocÍ pode expandir isso para usar os pesos (dropChance) de cada item, 
-        // mas para comeÁar, vamos pegar um aleatÛrio simples:
+        // 2. Escolhe um item aleat√≥rio da lista
+        // Voc√™ pode expandir isso para usar os pesos (dropChance) de cada item, 
+        // mas para come√ßar, vamos pegar um aleat√≥rio simples:
         int randomIndex = Random.Range(0, possibleDrops.Count);
         LootDrop selectedDrop = possibleDrops[randomIndex];
 
-        // 3. Instancia o item na posiÁ„o do inimigo
-        // Subimos um pouco no eixo Y (0.5f) para n„o spawnar dentro do ch„o
+        // 3. Instancia o item na posi√ß√£o do inimigo
+        // Subimos um pouco no eixo Y (0.5f) para n√£o spawnar dentro do ch√£o
         Vector3 spawnPos = transform.position + Vector3.up * 0.5f;
         Instantiate(selectedDrop.itemPrefab, spawnPos, Quaternion.identity);
     }
@@ -424,6 +595,8 @@ public class Enemy : MonoBehaviour, IDamageable
     private void OnDestroy()
     {
         transform.DOKill();
+        if (EnemyManager.Instance != null)
+            EnemyManager.Instance.UnregisterEnemy(this);
     }
 
     private void HandleGroupLogic()
@@ -432,7 +605,7 @@ public class Enemy : MonoBehaviour, IDamageable
 
         int enemyLayer = LayerMask.GetMask("Enemy");
 
-        // LÛgica para o LÌder
+        // L√≥gica para o L√≠der
         if (role == SocialRole.Leader && currentGroup != null)
         {
             currentGroup.UpdateGroup();
@@ -443,19 +616,18 @@ public class Enemy : MonoBehaviour, IDamageable
                 Enemy other = col.GetComponentInParent<Enemy>();
                 if (other == null || other == this || other.isDead) continue;
 
-                // 1. RECRUTAMENTO: Se o outro n„o tem grupo, entra no meu
+                // 1. RECRUTAMENTO: Se o outro n√£o tem grupo, entra no meu
                 if (other.currentGroup == null && other.role != SocialRole.LoneWolf)
                 {
                     other.JoinGroup(currentGroup);
                 }
 
-                // 2. FUS√O (MergeInto): Se o outro TAMB…M È lÌder de um grupo
+                // 2. FUS√ÉO (MergeInto): Se o outro TAMB√âM √© l√≠der de um grupo
                 else if (other.role == SocialRole.Leader && other.currentGroup != null && other.currentGroup != this.currentGroup)
                 {
-                    // Lei do mais forte: O grupo com menos membros È absorvido
+                    // Lei do mais forte: O grupo com menos membros √© absorvido
                     if (this.currentGroup.members.Count >= other.currentGroup.members.Count)
                     {
-                        Debug.Log($"<color=orange>{this.name} absorveu o grupo de {other.name}</color>");
                         other.currentGroup.MergeInto(this.currentGroup);
                     }
                 }
@@ -491,20 +663,25 @@ public class Enemy : MonoBehaviour, IDamageable
         currentGroup.members.Add(this);
         other.JoinGroup(currentGroup);
 
-        Debug.Log($"<color=cyan>{name} criou um novo grupo e recrutou {other.name}!</color>");
     }
 
     public void JoinGroup(EnemyGroup group)
     {
-        // LÛgica de recusa
+        if (role == SocialRole.LoneWolf) return;
+
         if (socialBehavior == SocialBehavior.Rebellious && group.members.Count > 3)
         {
-            Debug.Log($"{name}: 'N„o sigo grupos grandes!'");
             return;
         }
 
+        if (!group.allowNewMembers)
+            return;
+
         currentGroup = group;
-        if (!currentGroup.members.Contains(this)) currentGroup.members.Add(this);
+
+        if (!currentGroup.members.Contains(this))
+            currentGroup.members.Add(this);
+
     }
 
     public void LeaveGroup()
@@ -512,32 +689,31 @@ public class Enemy : MonoBehaviour, IDamageable
         currentGroup?.members.Remove(this);
         currentGroup = null;
 
-        Debug.Log($"{gameObject.name} <color=redn>entrou</color> saiu do grupo");
     }
 
     private void OnDrawGizmos()
     {
         if (!Application.isPlaying || isDead) return;
 
-        // 1. Desenha uma linha atÈ o lÌder se estiver em grupo
+        // 1. Desenha uma linha at√© o l√≠der se estiver em grupo
         if (currentGroup != null && currentGroup.leader != null)
         {
             Gizmos.color = Color.cyan;
             Gizmos.DrawLine(transform.position, currentGroup.leader.transform.position);
 
-            // 2. Desenha uma esfera onde o "Slot" (vaga) do inimigo est·
+            // 2. Desenha uma esfera onde o "Slot" (vaga) do inimigo est√°
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(currentSlotPosition, 0.3f);
             Gizmos.DrawLine(transform.position, currentSlotPosition);
         }
 
-        // 3. Diferencia o LÌder visualmente no Editor
+        // 3. Diferencia o L√≠der visualmente no Editor
         if (role == SocialRole.Leader)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(transform.position + Vector3.up * 2f, 0.5f);
         }
-        // 4. Diferencia o Lobo Solit·rio
+        // 4. Diferencia o Lobo Solit√°rio
         else if (role == SocialRole.LoneWolf)
         {
             Gizmos.color = Color.black;
@@ -551,26 +727,35 @@ public class Enemy : MonoBehaviour, IDamageable
         {
             role = SocialRole.Leader;
             currentGroup = new EnemyGroup(this);
-            // O construtor do EnemyGroup j· adiciona 'this' ‡ lista de membros
-            Debug.Log($"<color=green>{name} forÁou a criaÁ„o de um grupo estratÈgico.</color>");
+            // O construtor do EnemyGroup j√° adiciona 'this' √† lista de membros
         }
     }
 
     private Transform FindBestTarget()
     {
-        // Certifique-se de que 'viewDistance' e 'targetMask' existam (veja o erro 3 abaixo)
-        Collider[] potentialTargets = Physics.OverlapSphere(transform.position, viewDistance, targetMask);
+        List<Transform> potentialTargets = sensors.GetAllVisibleTargets();
+
+        // Se o array vier vazio, o problema √© a TargetMask ou falta de Collider no Core
+        if (potentialTargets.Count == 0)
+        {
+            return null;
+        }
+
         Transform bestTarget = null;
-        float highestPriority = -1f;
+        float highestPriority = -1000f;
 
         foreach (var col in potentialTargets)
         {
-            // Passamos o transform do collider para o c·lculo
+            // Ignora a si mesmo para n√£o tentar atacar o pr√≥prio corpo
+            if (col.transform == transform || col.transform.IsChildOf(transform)) continue;
+
             float priority = CalculatePriority(col.transform);
+
+
             if (priority > highestPriority)
             {
                 highestPriority = priority;
-                bestTarget = col.transform; // Aqui pegamos o .transform do collider
+                bestTarget = col.transform;
             }
         }
         return bestTarget;
@@ -585,14 +770,18 @@ public class Enemy : MonoBehaviour, IDamageable
 
         if (target.CompareTag("Player"))
         {
-            // Use 'focus' em vez de 'personality' se vocÍ renomeou a vari·vel para os alvos
             if (focus == EnemyFocus.PlayerSlayer) score += 100;
-            if (focus == EnemyFocus.Bystander && currentHealth < maxHealth) score += 200;
+
+            // ‚≠ê REGRA NOVA: Player muito perto for√ßa aggro
+            if (focus == EnemyFocus.PlayerSlayer && dist < aggroOverrideDistance)
+                score += 1000;
         }
+
         else if (target.CompareTag("NPC"))
         {
             if (focus == EnemyFocus.Hunter) score += 150;
         }
+
         else if (target.CompareTag("Objective"))
         {
             if (focus == EnemyFocus.ObjectiveRooted) score += 500;
@@ -601,11 +790,108 @@ public class Enemy : MonoBehaviour, IDamageable
         return score;
     }
 
+    public void ReceiveGroupAlert(Transform target)
+    {
+
+        if (isDead) return;
+
+        // ObjectiveRooted ignora qualquer alerta que n√£o seja o Objective
+        if (focus == EnemyFocus.ObjectiveRooted && !target.CompareTag("Objective"))
+            return;
+        if (focus == EnemyFocus.Guardian && !target.CompareTag("Defense"))
+            return;
+
+
+
+        // Se j√° estou em combate, n√£o abandono
+        if (combatTarget != null)
+        {
+            float current = CalculatePriority(combatTarget);
+            float incoming = CalculatePriority(target);
+
+            if (incoming <= current)
+                return;
+        }
+
+        // Se meu foco ignora esse alvo, n√£o fa√ßo nada
+        if (ShouldIgnoreTarget(target)) return;
+
+        float score = CalculatePriority(target);
+
+        // S√≥ aceita se for algo relevante
+        if (score > 50f)
+        {
+            combatTarget = target;
+            isChasing = true;
+        }
+    }
+
+    bool ShouldIgnoreTarget(Transform target)
+    {
+        if (focus == EnemyFocus.ObjectiveRooted && !target.CompareTag("Objective"))
+            return true;
+
+        if (focus == EnemyFocus.Guardian && !target.CompareTag("Defense"))
+            return true;
+
+        if (focus == EnemyFocus.Hunter && !target.CompareTag("NPC"))
+            return true;
+
+        return false;
+    }
+
+    private void UpdateTargetAwareness()
+    {
+        if (combatTarget == null) return;
+
+        // Verifica se o alvo atual est√° na lista de alvos vis√≠veis dos sensores
+        bool targetIsVisible = sensors.GetAllVisibleTargets().Contains(combatTarget);
+
+        if (!targetIsVisible)
+        {
+            // O alvo sumiu! Come√ßa a contar o tempo
+            targetLostTimer += EnemyManager.Instance.tickInterval; // Usa o intervalo do Manager
+
+            if (targetLostTimer >= targetForgetThreshold)
+            {
+                ForgetTarget();
+            }
+        }
+        else
+        {
+            // Alvo vis√≠vel, reseta o timer
+            targetLostTimer = 0;
+        }
+    }
+
+    private void ForgetTarget()
+    {
+        combatTarget = null;
+        isChasing = false;
+        targetLostTimer = 0;
+        state = EnemyState.Idle;
+
+        // Atualiza o destino para o navigationTarget
+        if (navigationTarget != null)
+            targetDestination = navigationTarget.position;
+        else
+            targetDestination = transform.position;
+
+    }
+
+
+    public Transform attackPoint;
+
+    public Transform GetAttackPoint()
+    {
+        return attackPoint != null ? attackPoint : transform;
+    }
+
 }
 
 [System.Serializable]
 public class LootDrop
 {
     public GameObject itemPrefab;
-    [Range(0, 100)] public float dropChance; // Chance especÌfica deste item cair
+    [Range(0, 100)] public float dropChance; // Chance espec√≠fica deste item cair
 }

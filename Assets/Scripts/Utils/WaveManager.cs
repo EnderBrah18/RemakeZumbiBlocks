@@ -33,13 +33,14 @@ public class WaveManager : MonoBehaviour
         inputActions = new PlayerInputActions();
     }
 
+
+
     private void OnEnable()
     {
         inputActions.Enable();
 
         inputActions.Player.Accept.performed += ctx => StartFirstWave();
     }
-
 
     void StartFirstWave()
     {

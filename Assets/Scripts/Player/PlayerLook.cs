@@ -43,6 +43,8 @@ public class PlayerLook : MonoBehaviour
 
     void Update()
     {
+        if (Time.timeScale == 0) return;
+
         HandleLook();
     }
     void LateUpdate()

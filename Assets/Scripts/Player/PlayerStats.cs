@@ -18,6 +18,9 @@ public class PlayerStats : MonoBehaviour, IDamageable
     public float shakeDuration = 0.2f;
     public float shakeStrength = 0.3f;
 
+    public Transform attackPoint;
+
+   
 
     void Awake()
     {
@@ -29,6 +32,11 @@ public class PlayerStats : MonoBehaviour, IDamageable
         }
 
         UpdateUI();
+    }
+
+    public Transform GetAttackPoint()
+    {
+        return attackPoint != null ? attackPoint : transform;
     }
 
     public void Damage(float amount)

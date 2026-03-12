@@ -6,6 +6,7 @@ public class EnemySensors : MonoBehaviour
     [Header("Configurações de Visão")]
     public float viewDistance = 15f;
     public float viewAngle = 90f;
+    public float closeDetectionRadius = 4f;
     public LayerMask obstacleMask; // O que bloqueia a visão (Paredes)
     public LayerMask targetMask;   // O que ele procura (Player, NPCs)
 
@@ -13,34 +14,40 @@ public class EnemySensors : MonoBehaviour
     public float groundCheckDist = 1.5f;
     public LayerMask groundMask;
 
-    // Retorna o objeto detectado se estiver no campo de visão e sem obstáculos
-    public Transform CheckVisualDetection()
+    [Header("TICKAI")]
+    private List<Transform> cachedTargets = new List<Transform>();
+    private float nextSensorUpdate;
+    public float sensorInterval = 0.2f; // 5 vezes por segundo é suficiente
+
+
+    List<Transform> GetCloseTargets()
     {
-        // Encontra potenciais alvos em um raio
-        Collider[] targetsInRadius = Physics.OverlapSphere(transform.position, viewDistance, targetMask);
+        List<Transform> found = new List<Transform>();
 
-        foreach (var target in targetsInRadius)
+        Collider[] targets = Physics.OverlapSphere(transform.position, closeDetectionRadius, targetMask);
+
+        foreach (var col in targets)
         {
-            Vector3 dirToTarget = (target.transform.position - transform.position).normalized;
+            float dist = Vector3.Distance(transform.position, col.transform.position);
 
-            // 1. Verifica o ângulo de visão (FOV)
-            if (Vector3.Angle(transform.forward, dirToTarget) < viewAngle / 2)
+            if (!Physics.Raycast(transform.position + Vector3.up,
+                                 (col.transform.position - transform.position).normalized,
+                                 dist,
+                                 obstacleMask))
             {
-                float distToTarget = Vector3.Distance(transform.position, target.transform.position);
-
-                // 2. Dispara Raycast para garantir que não há paredes no caminho
-                if (!Physics.Raycast(transform.position + Vector3.up, dirToTarget, distToTarget, obstacleMask))
-                {
-                    return target.transform; // Viu o alvo!
-                }
+                found.Add(col.transform);
             }
         }
-        return null;
+
+        return found;
     }
 
     public List<Transform> GetAllVisibleTargets()
     {
         List<Transform> found = new List<Transform>();
+
+        found.AddRange(GetCloseTargets());
+
         Collider[] targetsInRadius = Physics.OverlapSphere(transform.position, viewDistance, targetMask);
 
         foreach (var col in targetsInRadius)
@@ -48,15 +55,16 @@ public class EnemySensors : MonoBehaviour
             Vector3 dirToTarget = (col.transform.position - transform.position).normalized;
             float distToTarget = Vector3.Distance(transform.position, col.transform.position);
 
-            // Verifica FOV e se há paredes
             if (Vector3.Angle(transform.forward, dirToTarget) < viewAngle / 2)
             {
                 if (!Physics.Raycast(transform.position + Vector3.up, dirToTarget, distToTarget, obstacleMask))
                 {
-                    found.Add(col.transform);
+                    if (!found.Contains(col.transform))
+                        found.Add(col.transform);
                 }
             }
         }
+
         return found;
     }
 
@@ -90,5 +98,11 @@ public class EnemySensors : MonoBehaviour
         // sideOffset será transform.right * 0.4f ou -transform.right * 0.4f
         Vector3 origin = transform.position + Vector3.up * 0.5f + sideOffset;
         return Physics.Raycast(origin, Vector3.down, 1.2f, groundMask);
+    }
+
+    public bool HasObstacleAhead(Vector3 direction, float distance)
+    {
+        // Lança um raio para detectar colisores na Layer de Obstáculos
+        return Physics.Raycast(transform.position + Vector3.up * 0.5f, direction, distance, obstacleMask);
     }
 }

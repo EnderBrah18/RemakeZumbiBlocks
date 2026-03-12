@@ -5,6 +5,8 @@ TagManager:
   serializedVersion: 3
   tags:
   - Head
+  - Objective
+  - NPC
   layers:
   - Default
   - TransparentFX
@@ -19,7 +21,7 @@ TagManager:
   - Interactable
   - Enemy
   - Obstacles
-  - 
+  - Objectives
   - 
   - 
   - 

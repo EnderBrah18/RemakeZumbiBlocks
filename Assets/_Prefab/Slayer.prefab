@@ -480,7 +480,7 @@ GameObject:
   - component: {fileID: 3789788431924979632}
   - component: {fileID: 4212961933929057639}
   m_Layer: 11
-  m_Name: Enemy
+  m_Name: Slayer
   m_TagString: Untagged
   m_Icon: {fileID: -964228994112308473, guid: 0000000000000000d000000000000000, type: 0}
   m_NavMeshLayer: 0

@@ -6,7 +6,10 @@ public class EnemyGroup
 {
     public Enemy leader;
     public List<Enemy> members = new List<Enemy>();
-    public GroupPersonality personality;
+    public GroupPersonality personality { get; private set; }
+
+    public GroupIntent currentIntent = GroupIntent.MarchToCore;
+
     public Vector3 groupCenter;
 
     int attackerA = -1;
@@ -18,6 +21,7 @@ public class EnemyGroup
     float tacticRate = 0.3f;
 
     float rotationOffset;
+    public bool allowNewMembers = true;
 
     public EnemyGroup(Enemy leader)
     {
@@ -26,50 +30,57 @@ public class EnemyGroup
 
         // Define uma personalidade aleatória ao criar o grupo
         // 70% tático (Defensive/Supportive), 30% agressivo (Aggressive)
-        // float roll = Random.value;
-        // if (roll < 0.4f) personality = GroupPersonality.Aggressive;
-        // if (roll < 0.8f) personality = GroupPersonality.Defensive;
-        // personality = GroupPersonality.Supportive;
+        float roll = Random.value;
+        
+        personality = GroupPersonality.Aggressive;
 
-        personality = GroupPersonality.Aggressive; // Para testes, deixe fixo como agressivo
+    }
 
-        Debug.Log($"Grupo criado por {leader.name} com personalidade: {personality}");
+    public EnemyGroup(Enemy leader, GroupPersonality personality)
+    {
+        this.leader = leader;
+        this.members.Add(leader);
+        this.personality = personality;
+
     }
 
     public void UpdateGroup()
     {
+        // Limpeza de membros mortos ou nulos
         members.RemoveAll(m => m == null || m.currentHealth <= 0);
 
         if (leader != null)
         {
             foreach (var m in members)
             {
-                // O líder compartilha o DESTINO estratégico
+                if (m == null) continue;
+
+                // Não interfere se o inimigo está focado no player
+                if (m.focus == EnemyFocus.PlayerSlayer)
+                    continue;
+
+                // Não interfere se ele já está lutando
+                if (m.combatTarget != null)
+                    continue;
+
                 m.navigationTarget = leader.navigationTarget;
-
-                // Mas o SOLDIER ainda decide o seu próprio combatTarget no seu próprio Update
             }
         }
 
-        // O líder decide o foco estratégico
-        if (leader != null && leader.targetPlayer != null)
+        // O líder decide o foco estratégico e propaga para o grupo
+        if (leader != null && leader.combatTarget != null && Time.time > nextTacticUpdate)
         {
-            foreach (var m in members)
-            {
-                if (m == null || m == leader) continue;
-
-                // Soldados herdam o alvo do líder para manter coesão
-                m.targetPlayer = leader.targetPlayer;
-                m.isChasing = true;
-            }
+            AlertGroup(leader.combatTarget);
         }
 
-        if (leader != null && leader.targetPlayer != null && Time.time > nextTacticUpdate)
+        // Atualização de táticas de posicionamento (slots em volta do alvo)
+        if (leader != null && leader.combatTarget != null && Time.time > nextTacticUpdate)
         {
             nextTacticUpdate = Time.time + tacticRate;
-            ExecuteTactics(leader.targetPlayer);
+            ExecuteTactics(leader.combatTarget);
         }
 
+        // Incrementa a rotação para que o cerco não seja estático
         rotationOffset += Time.deltaTime * Random.Range(3f, 8f);
     }
 
@@ -77,11 +88,11 @@ public class EnemyGroup
     {
         if (player == null) return;
 
-        // Distâncias base para a formação
+        // Distâncias base para a formação de cerco
         float attackDistance = 2.2f + Random.Range(-0.4f, 0.5f);
         float ringDistance = attackDistance * 1.5f;
 
-        // Gerenciamento de atacantes designados
+        // Gerenciamento de atacantes designados (quem realmente fecha a distância)
         if (Time.time > nextAttackSwitch)
         {
             attackerA = Random.Range(0, members.Count);
@@ -97,7 +108,7 @@ public class EnemyGroup
         {
             if (members[i] == null) continue;
 
-            // Cálculo do ângulo para espalhar os inimigos em volta do player
+            // Cálculo do ângulo para espalhar os inimigos em volta do player (360 graus)
             float angle = i * (360f / members.Count) + rotationOffset;
 
             Vector3 offset = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad), 0,
@@ -109,23 +120,23 @@ public class EnemyGroup
             Vector3 targetPos;
 
             // --- LÓGICA DE POSICIONAMENTO ---
-            // 1. ATACANTES DESIGNADOS: Tentam fechar a distância
+            // 1. ATACANTES DESIGNADOS: Tentam fechar a distância para golpear
             if (i == attackerA || i == attackerB)
             {
                 targetPos = player.position + offset * (attackDistance * 0.5f);
             }
-            // 2. PRESSURE: Mantêm-se no limite do range de ataque
+            // 2. PRESSURE: Mantêm-se no limite do range de ataque para cercar
             else if (i % 2 == 0)
             {
                 targetPos = player.position + offset * attackDistance;
             }
-            // 3. FLANKERS: Criam o cerco externo
+            // 3. FLANKERS: Criam o cerco externo para evitar fuga
             else
             {
                 targetPos = player.position + offset * ringDistance;
             }
 
-            // Aplica um pequeno offset individual para evitar sobreposição perfeita
+            // Aplica um pequeno offset individual para evitar sobreposição perfeita (Z-fighting de IA)
             float individualSpacing = (i * 0.15f);
             targetPos += offset * individualSpacing;
 
@@ -133,30 +144,27 @@ public class EnemyGroup
         }
     }
 
-    public void AlertGroup(Transform player)
+    public void AlertGroup(Transform target)
     {
-        foreach (var m in members)
-        {
-            if (m == null) continue;
-            m.targetPlayer = player;
-            m.isChasing = true;
-        }
+        Debug.Log($"<color=orange>Líder {leader.name} recebeu alerta sobre {target.name}</color> "   );
 
-        if (leader != null)
-            leader.targetPlayer = player;
+        foreach (var member in members)
+        {
+            if (member == null) continue;
+            member.ReceiveGroupAlert(target);
+        }
     }
 
     public void TransferLeadership()
     {
-        // Limpa referências nulas ou inimigos que estão marcados como mortos
         members.RemoveAll(m => m == null || m.currentHealth <= 0);
 
         if (members.Count > 0)
         {
+            // O primeiro membro da lista assume o posto
             leader = members[0];
             leader.role = SocialRole.Leader;
 
-            // Opcional: Avisa o novo líder quem é o alvo para ele não perder o foco
             leader.isChasing = true;
 
             Debug.Log($"<color=cyan>SUCESSÃO:</color> O líder morreu. {leader.name} é o novo mestre do grupo.");
@@ -170,6 +178,9 @@ public class EnemyGroup
 
     public void MergeInto(EnemyGroup largerGroup)
     {
+        if (!allowNewMembers)
+            return;
+
         foreach (var member in members)
         {
             largerGroup.members.Add(member);

@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Spawner : MonoBehaviour
 {
     public GameObject enemyToSpawn;
+    public GameObject playerSlayerPrefab;
     public float spawnRadius = 2f;
 
 
@@ -23,26 +25,33 @@ public class Spawner : MonoBehaviour
         return newEnemy;
     }
 
-    public void SpawnSquad(Vector3 centerPos, int size)
+    public void SpawnPlayerSlayerSquad(Vector3 center)
     {
-        // 1. Spawna o Líder
-        GameObject leaderObj = Instantiate(enemyToSpawn, centerPos, Quaternion.identity);
-        Enemy leader = leaderObj.GetComponent<Enemy>();
+        List<Enemy> squad = new List<Enemy>();
+
+        for (int i = 0; i < 5; i++)
+        {
+            Vector3 spawnPos = center + Random.insideUnitSphere * 3f;
+            spawnPos.y = center.y;
+
+            GameObject obj = Instantiate(playerSlayerPrefab, spawnPos, Quaternion.identity);
+            Enemy enemy = obj.GetComponent<Enemy>();
+
+            squad.Add(enemy);
+        }
+
+        Enemy leader = squad[0];
         leader.role = SocialRole.Leader;
 
-        // Força a criação do grupo antes dos outros nascerem
-        leader.ForceCreateGroup();
+        EnemyGroup group = new EnemyGroup(leader, GroupPersonality.Tactical);
 
-        // 2. Spawna os soldados ao redor
-        for (int i = 0; i < size - 1; i++)
+        foreach (var member in squad)
         {
-            Vector3 randomOffset = new Vector3(Random.Range(-2f, 2f), 0, Random.Range(-2f, 2f));
-            GameObject soldierObj = Instantiate(enemyToSpawn, centerPos + randomOffset, Quaternion.identity);
-            Enemy soldier = soldierObj.GetComponent<Enemy>();
-
-            soldier.role = SocialRole.Soldier;
-            soldier.JoinGroup(leader.currentGroup);
+            member.JoinGroup(group);
         }
+        group.allowNewMembers = false;
+
+        Debug.Log($"Squad criado com {group.members.Count} membros");
     }
 
 }
